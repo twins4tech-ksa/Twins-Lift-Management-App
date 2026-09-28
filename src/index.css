@@ -1,0 +1,280 @@
+@import "tailwindcss";
+
+/* Twins Elevator Quotation & Contract Theme Styles */
+.erp-print-shell {
+  direction: rtl;
+  text-align: right;
+  font-family: "Tajawal", "Segoe UI", Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #172033;
+  background: #fff;
+  width: 100%;
+}
+
+.erp-print-shell * {
+  box-sizing: border-box;
+}
+
+.brand-strip {
+  height: 5px;
+  background: linear-gradient(90deg, #172033 0%, #172033 30%, #b6be49 30%, #b6be49 100%);
+  border-radius: 0 0 8px 8px;
+  margin-bottom: 8px;
+}
+
+.hero-title-ar {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: #172033;
+  margin-bottom: 3px;
+  text-align: center;
+}
+
+.hero-title-en {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
+  color: #b6be49;
+  text-transform: uppercase;
+  line-height: 1.15;
+  text-align: center;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.quote-hero,
+.contract-hero {
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #fcfdf4 100%);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  page-break-inside: avoid;
+}
+
+.hero-meta {
+  width: 100%;
+  border: 1px solid #eaecf0;
+  border-radius: 9px;
+  overflow: hidden;
+  border-collapse: collapse;
+}
+
+.hero-meta td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eaecf0;
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+.hero-meta tr:last-child td {
+  border-bottom: 0;
+}
+
+.hero-meta .m-label {
+  width: 45%;
+  font-weight: 800;
+  color: #344054;
+  text-align: right;
+}
+
+.hero-meta .m-value {
+  width: 55%;
+  font-weight: 900;
+  color: #172033;
+  text-align: center;
+}
+
+.section-erp {
+  margin-bottom: 10px;
+  page-break-inside: avoid;
+}
+
+.section-title-erp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #172033;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 9px 9px 0 0;
+  font-weight: 900;
+  font-size: 11.5px;
+  border-right: 5px solid #b6be49;
+}
+
+.section-title-erp .en {
+  color: #dce47d;
+  font-size: 11px;
+  font-weight: 900;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.box-erp {
+  border: 1px solid #e4e7ec;
+  border-top: 0;
+  border-radius: 0 0 9px 9px;
+  padding: 8px 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.spec-table-erp {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.spec-table-erp th {
+  background: #172033 !important;
+  color: #fff !important;
+  border: 1px solid #344054 !important;
+  padding: 5px 6px;
+  text-align: center;
+  font-weight: 900;
+  font-size: 11px;
+}
+
+.spec-table-erp td {
+  border: 1px solid #e4e7ec !important;
+  padding: 5px 6px;
+  background: #fff !important;
+  vertical-align: middle;
+  font-size: 11px;
+}
+
+.spec-table-erp tr:nth-child(even) td {
+  background: #f9fafb !important;
+}
+
+.spec-table-erp .value {
+  text-align: center;
+  direction: ltr;
+  unicode-bidi: plaintext;
+  font-weight: 900;
+  font-size: 11px;
+}
+
+.financial-table-erp th {
+  background: #b6be49 !important;
+  color: #172033 !important;
+  border-color: #aab23f !important;
+}
+
+.highlight-row-erp td {
+  background: #fff8e1 !important;
+  font-weight: 800;
+}
+
+.total-row-erp td {
+  background: #eef6c4 !important;
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #111827;
+}
+
+.note-box-erp {
+  background: #fffdf0;
+  border: 1px solid #f4df8f;
+  border-right: 5px solid #b6be49;
+  border-radius: 9px;
+  padding: 8px 10px;
+  margin-bottom: 9px;
+  page-break-inside: avoid;
+}
+
+.stat-card-erp {
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  padding: 8px 6px;
+  background: #fff;
+  text-align: center;
+  min-height: 54px;
+}
+
+.stat-label-erp {
+  color: #667085;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.stat-value-erp {
+  color: #172033;
+  font-size: 14px;
+  font-weight: 900;
+  margin-top: 2px;
+}
+
+.stat-value-erp.accent {
+  color: #b6be49;
+}
+
+.signature-box-erp {
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  padding: 10px;
+  height: 96px;
+  text-align: center;
+  background: #fff;
+  font-size: 11px;
+}
+
+.signature-line-erp {
+  border-top: 2px solid #98a2b3;
+  margin-top: 40px;
+  padding-top: 5px;
+  color: #667085;
+  font-weight: 800;
+}
+
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .no-print,
+  nav,
+  header,
+  #top-navbar,
+  #toast-notification {
+    display: none !important;
+  }
+  #printable-quotation-sheet,
+  #printable-contract-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .quote-hero,
+  .contract-hero,
+  .note-box-erp,
+  .section-erp,
+  .stat-card-erp,
+  .signature-box-erp {
+    page-break-inside: avoid;
+  }
+  @page {
+    margin: 1cm;
+    size: A4 portrait;
+  }
+}
+
+html[lang="ar"] .currency-price {
+  direction: ltr;
+}
+
+html[lang="en"] .currency-price {
+  direction: rtl;
+}
+

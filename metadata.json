@@ -1,0 +1,11 @@
+{
+  "name": "Twins Lift Manager",
+  "description": "Calculate elevator quotations, generate CAD drawings, manage component bills of materials, schedule maintenance contracts, and log GPS site attendance with geofencing.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
