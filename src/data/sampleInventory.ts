@@ -1,4 +1,4 @@
-import { InventoryItem, InventoryMovement, Vendor } from '../types/inventory';
+import { InventoryItem, InventoryMovement, Vendor, PurchaseOrder } from '../types/inventory';
 
 export const SAMPLE_INVENTORY: InventoryItem[] = [
   {
@@ -613,4 +613,86 @@ export const SAMPLE_VENDORS: Vendor[] = [
     address: 'طريق الخرج القديم، الرياض',
   },
 ];
+
+export const SAMPLE_PURCHASE_ORDERS: PurchaseOrder[] = [
+  {
+    id: 'po-101',
+    poNumber: 'PO-2026-1042',
+    vendorId: 'VND-TORIN',
+    vendorName: 'شركة تورين درايف لأنظمة الجر والمحركات',
+    vendorCode: 'TORIN',
+    vendorEmail: 'orders@torindrive.com',
+    vendorPhone: '+966 50 123 4567',
+    orderDate: '2026-09-15',
+    expectedDeliveryDate: '2026-10-05',
+    status: 'SENT',
+    items: [
+      {
+        itemId: 'INV-DRV-01',
+        sku: 'MOT-PMSM-1000',
+        nameAr: 'ماكينة جر متزامنة بدون تروس (PMSM Gearless 1000kg)',
+        nameEn: 'PMSM Permanent Magnet Synchronous Gearless Machine 1000kg',
+        quantityOrdered: 2,
+        quantityReceived: 0,
+        unitCost: 7800,
+        totalCost: 15600,
+        unit: 'set',
+      },
+      {
+        itemId: 'INV-DRV-02',
+        sku: 'MOT-GEARLESS-630',
+        nameAr: 'ماكينة جر بدون تروس متزامنة 630 كجم للفلل السكنية',
+        nameEn: 'MRL Compact Gearless Machine 630kg (8 Passengers)',
+        quantityOrdered: 3,
+        quantityReceived: 0,
+        unitCost: 5900,
+        totalCost: 17700,
+        unit: 'set',
+      },
+    ],
+    subtotal: 33300,
+    vatRate: 15,
+    vatAmount: 4995,
+    totalAmount: 38295,
+    paymentTerms: 'آجل 30 يوم (30 Days Net)',
+    deliveryLocation: 'مستودع الرياض المركزي - حي السلي',
+    notes: 'توريد دفعة المحركات الدورية مع شهادات الفحص ومطابقة كود البناء السعودي SASO',
+    createdBy: 'م. راكان التميمي (مسؤول المشتريات)',
+  },
+  {
+    id: 'po-102',
+    poNumber: 'PO-2026-0988',
+    vendorId: 'VND-FERMATOR',
+    vendorName: 'فيرماتور إسبانيا لأنظمة وأبواب المصاعد',
+    vendorCode: 'FERMATOR',
+    vendorEmail: 'sales@fermator.es',
+    vendorPhone: '+966 54 889 0012',
+    orderDate: '2026-08-28',
+    expectedDeliveryDate: '2026-09-18',
+    receivedDate: '2026-09-17',
+    status: 'RECEIVED',
+    items: [
+      {
+        itemId: 'INV-DOR-01',
+        sku: 'OPR-FERMATOR-VVVF',
+        nameAr: 'مشغل أبواب كابينة أوتوماتيكي متطور مع إنفرتر (VVVF5)',
+        nameEn: 'Automatic Premium VVVF5 Door Operator Assembly',
+        quantityOrdered: 4,
+        quantityReceived: 4,
+        unitCost: 2400,
+        totalCost: 9600,
+        unit: 'set',
+      },
+    ],
+    subtotal: 9600,
+    vatRate: 15,
+    vatAmount: 1440,
+    totalAmount: 11040,
+    paymentTerms: 'اعتماد بنكي LC',
+    deliveryLocation: 'مستودع الرياض المركزي - حي السلي',
+    notes: 'تم فحص الشحنة واستلامها بالكامل مطابقة للمواصفات',
+    createdBy: 'م. راكان التميمي (مسؤول المشتريات)',
+  },
+];
+
 

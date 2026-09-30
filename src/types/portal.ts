@@ -1,6 +1,6 @@
 import { NavTab } from './navigation';
 
-export type UserPortalRole = 'MANAGEMENT' | 'TECHNICIAN' | 'CUSTOMER' | 'SALES_REP';
+export type UserPortalRole = 'MANAGEMENT' | 'TECHNICIAN' | 'CUSTOMER' | 'SALES_REP' | 'SUPPLIER';
 
 export interface RolePrivileges {
   role: UserPortalRole;
@@ -146,6 +146,31 @@ export const ROLE_PRIVILEGES_MAP: Record<UserPortalRole, RolePrivileges> = {
     canCheckInGps: true,
     canViewAllDepartmentRecords: false, // افتراضياً لا يشاهد إلا ما هو مسند له أو مدخل بواسطته
   },
+  SUPPLIER: {
+    role: 'SUPPLIER',
+    titleAr: 'بوابة المورد المعتمد',
+    titleEn: 'Certified Supplier Portal',
+    subtitleAr: 'متابعة أوامر الشراء، تحديث فترات التوريد، كتالوج قطع الغيار المعتمدة',
+    subtitleEn: 'Track purchase orders, lead-time schedules & supplied spare parts',
+    badgeBg: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+    badgeText: 'text-indigo-700',
+    badgeBorder: 'border-indigo-300',
+    avatarColor: 'bg-indigo-700 text-white',
+    canViewPricing: true,
+    canViewGrossMargins: false,
+    canManageSettings: false,
+    canManageEmployees: false,
+    canManageCustomers: false,
+    canCreateQuotations: false,
+    canViewSalesAnalytics: false,
+    canManageContracts: false,
+    canSignVisits: false,
+    canUpdateBreakdowns: false,
+    canReportBreakdowns: false,
+    canViewCadDrawings: false,
+    canCheckInGps: false,
+    canViewAllDepartmentRecords: false,
+  },
 };
 
 export const SAMPLE_USER_PROFILES: UserProfile[] = [
@@ -192,5 +217,15 @@ export const SAMPLE_USER_PROFILES: UserProfile[] = [
     avatarLabel: 'مب',
     title: 'مسؤول مبيعات المشاريع الكبرى',
     employeeId: 'emp-101',
+  },
+  {
+    id: 'user-supp-01',
+    name: 'شركة تورين درايف لأنظمة الجر (المورد)',
+    nameEn: 'Torin Drive Co. (Supplier)',
+    role: 'SUPPLIER',
+    email: 'orders@torindrive.com',
+    phone: '+966 50 123 4567',
+    avatarLabel: 'ور',
+    title: 'مورد معتمد - أنظمة الجر والمحركات',
   },
 ];

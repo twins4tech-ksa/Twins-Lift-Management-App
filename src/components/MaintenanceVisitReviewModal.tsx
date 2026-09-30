@@ -11,8 +11,11 @@ import {
   Clock,
   Building2,
   Save,
-  CheckCheck
+  CheckCheck,
+  PenTool,
+  Check
 } from 'lucide-react';
+import { DigitalSignaturePad } from './DigitalSignaturePad';
 import { 
   MaintenanceVisit, 
   MaintenanceVisitReview, 
@@ -81,6 +84,8 @@ export default function MaintenanceVisitReviewModal({
   const [activeTab, setActiveTab] = useState<'FORM' | 'PRINT_VIEW'>('FORM');
   const [checklistFilter, setChecklistFilter] = useState<'ALL' | 'ATTENTION_FAIL'>('ALL');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
+  const [isSignaturePadOpen, setIsSignaturePadOpen] = useState(false);
+  const [clientSignatureUrl, setClientSignatureUrl] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -511,6 +516,32 @@ export default function MaintenanceVisitReviewModal({
                     />
                   </div>
                 </div>
+
+                {/* Digital Signature Pad Trigger & Thumbnail */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsSignaturePadOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl border border-blue-200 transition-colors cursor-pointer"
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      <span>{clientSignatureUrl ? (isAr ? 'تعديل التوقيع الإلكتروني' : 'Edit E-Signature') : (isAr ? '✍️ توقيع العميل إلكترونياً على الشاشة' : 'Sign on Screen')}</span>
+                    </button>
+                    {clientSignatureUrl && (
+                      <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        <span>{isAr ? 'تم حفظ التوقيع الحي' : 'Live signature captured'}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {clientSignatureUrl && (
+                    <div className="border border-slate-200 bg-white p-1 rounded-lg shadow-2xs">
+                      <img src={clientSignatureUrl} alt="Signature" className="h-9 max-w-[130px] object-contain" />
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           ) : (
@@ -638,15 +669,36 @@ export default function MaintenanceVisitReviewModal({
                   <span className="font-bold text-slate-800 block">{isAr ? 'استلام وتوقيع ممثل العميل' : 'Client Representative Sign-off'}</span>
                   <p className="text-slate-600">{isAr ? 'الاسم: ' : 'Name: '} {reviewState.clientRepresentative || contract.customerName}</p>
                   <div className="h-12 border-b border-dashed border-slate-400 flex items-end">
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {reviewState.clientSigned ? 'Client Accepted & Certified' : 'Signature'}
-                    </span>
+                    {clientSignatureUrl ? (
+                      <img src={clientSignatureUrl} alt="Customer Signature" className="max-h-12 object-contain" />
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {reviewState.clientSigned ? 'Client Accepted & Certified' : 'Signature'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
           )}
         </div>
+
+        {/* Digital Signature Pad Modal */}
+        {isSignaturePadOpen && (
+          <DigitalSignaturePad
+            titleAr="توقيع العميل الإلكتروني على زيارة الصيانة"
+            titleEn="Client E-Signature for Maintenance Visit"
+            signatoryName={reviewState.clientRepresentative || contract.customerName}
+            signatoryRole={isAr ? 'ممثل العميل / مسؤول الموقع' : 'Client Representative'}
+            language={language}
+            onSave={(dataUrl) => {
+              setClientSignatureUrl(dataUrl);
+              setReviewState((prev) => ({ ...prev, clientSigned: true }));
+              setIsSignaturePadOpen(false);
+            }}
+            onClose={() => setIsSignaturePadOpen(false)}
+          />
+        )}
 
         {/* Footer Actions */}
         <div className="px-6 py-4 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">

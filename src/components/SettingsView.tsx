@@ -46,6 +46,12 @@ import {
   WhatsAppConfig 
 } from '../services/whatsappService';
 import { exportSyncLogsToExcel } from '../utils/excelExport';
+import { 
+  exportSystemBackup, 
+  validateBackupFile, 
+  restoreSystemBackup, 
+  SystemBackupData 
+} from '../utils/backupRestore';
 
 interface Props {
   settings: CompanySettings;
@@ -83,9 +89,14 @@ export const SettingsView: React.FC<Props> = ({
 }) => {
   const t = TRANSLATIONS[language];
   const [formData, setFormData] = useState<CompanySettings>(settings);
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'LOGO' | 'COLORS' | 'TERMS' | 'ATTENDANCE' | 'WHATSAPP' | 'SHEETS' | 'PREVIEW' | 'DRAWING'>('PROFILE');
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'LOGO' | 'COLORS' | 'TERMS' | 'ATTENDANCE' | 'WHATSAPP' | 'SHEETS' | 'PREVIEW' | 'DRAWING' | 'BACKUP'>('PROFILE');
   const [isSyncingNow, setIsSyncingNow] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const backupFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Backup & Restore State
+  const [pendingBackup, setPendingBackup] = useState<SystemBackupData | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   // WhatsApp API Settings State
   const [waConfig, setWaConfig] = useState<WhatsAppConfig>(getWhatsAppConfig);
@@ -393,6 +404,20 @@ export const SettingsView: React.FC<Props> = ({
         >
           <Eye className="w-4 h-4" />
           <span>{t.tabLivePreview}</span>
+        </button>
+
+        <button
+          id="tab-btn-backup"
+          type="button"
+          onClick={() => setActiveTab('BACKUP')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all whitespace-nowrap ${
+            activeTab === 'BACKUP'
+              ? 'bg-indigo-700 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-indigo-400" />
+          <span>{language === 'ar' ? 'النسخ الاحتياطي وحفظ البيانات' : 'Backup & Restore'}</span>
         </button>
       </div>
 
@@ -1986,6 +2011,175 @@ export const SettingsView: React.FC<Props> = ({
                   <span className="text-[6px] font-bold" style={{ color: formData.accentColor }}>SEAL</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: SYSTEM BACKUP & RESTORE (النسخ الاحتياطي واستعادة البيانات)           */}
+      {/* ========================================================================= */}
+      {activeTab === 'BACKUP' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-200">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  {language === 'ar' ? 'النسخ الاحتياطي الشامل واستعادة البيانات' : 'System Full Backup & Restore'}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {language === 'ar' 
+                    ? 'حفظ وتصدير كافة بيانات النظام (مشاريع، عملاء، عقود، بلاغات، موظفين، مخزون وموردين) لحمايتها من الضياع أو نقلها لجهاز آخر'
+                    : 'Export and restore all database records, elevator projects, contracts, employees and inventory'}
+                </p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-200">
+              Offline JSON Vault
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Card 1: Export Backup */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-900 font-bold text-sm">
+                  <Download className="w-5 h-5 text-indigo-600" />
+                  <span>{language === 'ar' ? 'تصدير نسخة احتياطية كاملة (Export)' : 'Export Full Backup'}</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {language === 'ar'
+                    ? 'يقوم النظام بجمع كافة الجداول والسجلات المحلية وحزمها في ملف بصيغة JSON آمن يمكنك حفظه في السحابة، على حاسوبك، أو إرساله بالبريد الإلكتروني.'
+                    : 'Packs all local records, quotes, contracts and inventory into a single downloadable JSON backup file.'}
+                </p>
+                <div className="bg-white p-3 rounded-xl border border-slate-200 text-[11px] text-slate-500 space-y-1">
+                  <div>• {language === 'ar' ? `المشاريع المسجلة: ${totalProjectsCount} مشروع` : `Projects: ${totalProjectsCount}`}</div>
+                  <div>• {language === 'ar' ? 'عقود الصيانة وبلاغات الأعطال' : 'Maintenance contracts & breakdowns'}</div>
+                  <div>• {language === 'ar' ? 'أصناف المستودع وسجلات الموردين' : 'Inventory & vendors database'}</div>
+                  <div>• {language === 'ar' ? 'إعدادات المنشأة والهوية البصرية' : 'Company branding & settings'}</div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    exportSystemBackup();
+                    onShowToast(language === 'ar' ? 'تم تصدير وتحميل النسخة الاحتياطية بنجاح ✅' : 'Backup exported successfully ✅');
+                  } catch (err) {
+                    console.error(err);
+                    onShowToast(language === 'ar' ? 'تعذر تصدير النسخة الاحتياطية' : 'Failed to export backup');
+                  }
+                }}
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>{language === 'ar' ? 'تحميل النسخة الاحتياطية الآن (.JSON)' : 'Download Backup File (.JSON)'}</span>
+              </button>
+            </div>
+
+            {/* Card 2: Restore Backup */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                  <Upload className="w-5 h-5 text-teal-600" />
+                  <span>{language === 'ar' ? 'استعادة البيانات من نسخة سابقة (Restore)' : 'Restore from Backup'}</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {language === 'ar'
+                    ? 'اختر ملف نسخة احتياطية سبق تصديره من هذا النظام لتحديث واستعادة كافة البيانات والسجلات مع فحص ومطابقة الهيكل تلقائياً.'
+                    : 'Upload a previously exported JSON backup file to restore your entire database seamlessly.'}
+                </p>
+
+                {/* Hidden File Input */}
+                <input
+                  ref={backupFileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      try {
+                        const content = event.target?.result as string;
+                        const parsed = validateBackupFile(content);
+                        setPendingBackup(parsed);
+                        onShowToast(language === 'ar' ? 'تم فحص ملف النسخة الاحتياطية بنجاح، يرجى التأكيد' : 'Backup validated, please confirm');
+                      } catch (err: any) {
+                        alert(language === 'ar' ? `خطأ في ملف النسخة الاحتياطية: ${err.message}` : `Invalid backup: ${err.message}`);
+                      }
+                    };
+                    reader.readAsText(file);
+                    // Reset input
+                    e.target.value = '';
+                  }}
+                />
+
+                {/* Pending Backup Preview if loaded */}
+                {pendingBackup ? (
+                  <div className="bg-emerald-50 border border-emerald-300 p-3.5 rounded-xl space-y-2 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{language === 'ar' ? 'الملف جاهز للاستعادة:' : 'Backup ready to restore:'}</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-800 space-y-0.5">
+                      <div>• {language === 'ar' ? `تاريخ النسخة: ${pendingBackup.timestamp.split('T')[0]}` : `Date: ${pendingBackup.timestamp.split('T')[0]}`}</div>
+                      <div>• {language === 'ar' ? `المشاريع: ${pendingBackup.metadata.projectsCount} | العملاء: ${pendingBackup.metadata.customersCount}` : `Projects: ${pendingBackup.metadata.projectsCount} | Customers: ${pendingBackup.metadata.customersCount}`}</div>
+                      <div>• {language === 'ar' ? `عقود الصيانة: ${pendingBackup.metadata.contractsCount} | الأصناف: ${pendingBackup.metadata.inventoryCount}` : `Contracts: ${pendingBackup.metadata.contractsCount} | Inventory: ${pendingBackup.metadata.inventoryCount}`}</div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2 border-t border-emerald-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            setIsRestoring(true);
+                            const res = restoreSystemBackup(pendingBackup);
+                            onShowToast(language === 'ar' ? `تمت استعادة البيانات بنجاح: ${res.restoredItemsSummary}` : 'Database restored successfully');
+                            setTimeout(() => {
+                              window.location.reload();
+                            }, 1200);
+                          } catch (err) {
+                            alert(language === 'ar' ? 'حدث خطأ أثناء استعادة البيانات' : 'Restore failed');
+                            setIsRestoring(false);
+                          }
+                        }}
+                        disabled={isRestoring}
+                        className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer text-center"
+                      >
+                        {isRestoring ? (language === 'ar' ? 'جاري الاستعادة...' : 'Restoring...') : (language === 'ar' ? 'تأكيد واستعادة البيانات' : 'Confirm Restore')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingBackup(null)}
+                        className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold border border-slate-300 cursor-pointer"
+                      >
+                        {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-slate-300 p-4 rounded-xl text-center text-xs text-slate-400">
+                    {language === 'ar' ? 'انقر على الزر أدناه لاختيار ملف النسخة الاحتياطية (.json)' : 'Select .json backup file below'}
+                  </div>
+                )}
+              </div>
+
+              {!pendingBackup && (
+                <button
+                  type="button"
+                  onClick={() => backupFileInputRef.current?.click()}
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>{language === 'ar' ? 'اختيار ملف النسخة واستعادتها (.JSON)' : 'Select Backup File to Restore'}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -56,6 +56,43 @@ export interface Vendor {
 
 export type InventoryMovementType = 'IN' | 'OUT' | 'ADJUST' | 'RESERVE' | 'RELEASE';
 
+export type PurchaseOrderStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED';
+
+export interface PurchaseOrderItem {
+  itemId: string;
+  sku: string;
+  nameAr: string;
+  nameEn: string;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unitCost: number;
+  totalCost: number;
+  unit: string;
+}
+
+export interface PurchaseOrder {
+  id: string;               // e.g. "po-101"
+  poNumber: string;         // e.g. "PO-2026-1042"
+  vendorId: string;
+  vendorName: string;
+  vendorCode: string;
+  vendorEmail?: string;
+  vendorPhone?: string;
+  orderDate: string;
+  expectedDeliveryDate?: string;
+  receivedDate?: string;
+  status: PurchaseOrderStatus;
+  items: PurchaseOrderItem[];
+  subtotal: number;
+  vatRate: number;          // e.g. 15
+  vatAmount: number;
+  totalAmount: number;
+  paymentTerms: string;
+  deliveryLocation: string;
+  notes?: string;
+  createdBy: string;
+}
+
 export interface InventoryMovement {
   id: string;
   itemId: string;

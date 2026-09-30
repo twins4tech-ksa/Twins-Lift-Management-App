@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X, Save, AlertTriangle } from 'lucide-react';
+import { X, Save, AlertTriangle, Camera, Image as ImageIcon, Trash2, PenTool, Check } from 'lucide-react';
 import { MaintenanceBreakdown, BreakdownStatus, BreakdownPriority } from '../types/maintenance';
 import { AppLanguage } from '../utils/translations';
 import { Employee } from '../types/employee';
 import { ElevatorSpecification, Customer } from '../types/elevator';
 import { SearchableSelect } from './SearchableSelect';
+import { DigitalSignaturePad } from './DigitalSignaturePad';
 
 interface BreakdownModalProps {
   breakdown?: MaintenanceBreakdown;
@@ -37,6 +38,27 @@ export const BreakdownModal: React.FC<BreakdownModalProps> = ({
     }
   );
 
+  const [beforePhotos, setBeforePhotos] = useState<string[]>((breakdown as any)?.beforePhotos || []);
+  const [afterPhotos, setAfterPhotos] = useState<string[]>((breakdown as any)?.afterPhotos || []);
+  const [clientSignatureUrl, setClientSignatureUrl] = useState<string | null>((breakdown as any)?.clientSignatureDataUrl || null);
+  const [isSignaturePadOpen, setIsSignaturePadOpen] = useState(false);
+
+  const handleFileUpload = (type: 'BEFORE' | 'AFTER', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (type === 'BEFORE') {
+        setBeforePhotos((prev) => [...prev, dataUrl]);
+      } else {
+        setAfterPhotos((prev) => [...prev, dataUrl]);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -53,7 +75,10 @@ export const BreakdownModal: React.FC<BreakdownModalProps> = ({
       id: formData.id || `brk-${Date.now()}`,
       isResolved,
       resolvedAt,
-    } as MaintenanceBreakdown);
+      beforePhotos,
+      afterPhotos,
+      clientSignatureDataUrl: clientSignatureUrl || undefined,
+    } as any);
   };
 
   const handleCustomerChange = (customerId: string) => {
@@ -340,9 +365,143 @@ export const BreakdownModal: React.FC<BreakdownModalProps> = ({
                 </p>
               </div>
             </div>
+
+            {/* Photo Documentation Section (Before & After) */}
+            <div className="border-t border-slate-100 pt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-slate-600" />
+                <span className="text-xs font-bold text-slate-800">
+                  {isAr ? 'التوثيق الميداني بالصور (قبل وبعد الإصلاح)' : 'Photo Documentation (Before & After)'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Before Photos */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-800">
+                      {isAr ? '📷 صور العطل / القطعة التالفة (قبل)' : 'Before Repair'}
+                    </span>
+                    <label className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-white px-2 py-1 rounded-lg border border-amber-300 hover:bg-amber-50 cursor-pointer shadow-2xs">
+                      <span>{isAr ? '+ إضافة صورة' : '+ Add Photo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleFileUpload('BEFORE', e)}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 overflow-x-auto py-1">
+                    {beforePhotos.length === 0 ? (
+                      <div className="text-[10px] text-slate-400 py-2 text-center w-full">
+                        {isAr ? 'لا توجد صور مضافة' : 'No photos added'}
+                      </div>
+                    ) : (
+                      beforePhotos.map((img, i) => (
+                        <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-300 shrink-0 group">
+                          <img src={img} alt="Before" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setBeforePhotos(beforePhotos.filter((_, idx) => idx !== i))}
+                            className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* After Photos */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-800">
+                      {isAr ? '📷 صور الإصلاح والتركيب (بعد)' : 'After Repair'}
+                    </span>
+                    <label className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-white px-2 py-1 rounded-lg border border-emerald-300 hover:bg-emerald-50 cursor-pointer shadow-2xs">
+                      <span>{isAr ? '+ إضافة صورة' : '+ Add Photo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleFileUpload('AFTER', e)}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 overflow-x-auto py-1">
+                    {afterPhotos.length === 0 ? (
+                      <div className="text-[10px] text-slate-400 py-2 text-center w-full">
+                        {isAr ? 'لا توجد صور مضافة' : 'No photos added'}
+                      </div>
+                    ) : (
+                      afterPhotos.map((img, i) => (
+                        <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-300 shrink-0 group">
+                          <img src={img} alt="After" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setAfterPhotos(afterPhotos.filter((_, idx) => idx !== i))}
+                            className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Client E-Signature Section */}
+            <div className="border-t border-slate-100 pt-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsSignaturePadOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl border border-blue-200 transition-colors cursor-pointer"
+                  >
+                    <PenTool className="w-3.5 h-3.5" />
+                    <span>{clientSignatureUrl ? (isAr ? 'تعديل التوقيع الحي للعميل' : 'Edit E-Signature') : (isAr ? '✍️ توقيع العميل إلكترونياً على الإصلاح' : 'Client E-Signature')}</span>
+                  </button>
+                  {clientSignatureUrl && (
+                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      <span>{isAr ? 'تم اعتماد التوقيع' : 'Signed'}</span>
+                    </span>
+                  )}
+                </div>
+
+                {clientSignatureUrl && (
+                  <div className="border border-slate-200 bg-white p-1 rounded-lg shadow-2xs">
+                    <img src={clientSignatureUrl} alt="Client Signature" className="h-8 max-w-[120px] object-contain" />
+                  </div>
+                )}
+              </div>
+            </div>
             
           </form>
         </div>
+
+        {/* Digital Signature Pad Modal */}
+        {isSignaturePadOpen && (
+          <DigitalSignaturePad
+            titleAr="توقيع العميل على إنجاز إصلاح العطل"
+            titleEn="Client E-Signature for Breakdown Resolution"
+            signatoryName={formData.customerName || ''}
+            signatoryRole={isAr ? 'العميل أو ممثل الموقع' : 'Client Representative'}
+            language={language}
+            onSave={(dataUrl) => {
+              setClientSignatureUrl(dataUrl);
+              setIsSignaturePadOpen(false);
+            }}
+            onClose={() => setIsSignaturePadOpen(false)}
+          />
+        )}
 
         <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
           <button

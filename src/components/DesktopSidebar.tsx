@@ -87,7 +87,8 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
     MANAGEMENT: { ar: 'الإدارة العليا', en: 'Management', color: 'bg-amber-100 text-amber-800 border-amber-200' },
     SALES_REP: { ar: 'مندوب مبيعات', en: 'Sales Rep', color: 'bg-blue-100 text-blue-800 border-blue-200' },
     TECHNICIAN: { ar: 'فني ميداني', en: 'Field Tech', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-    CUSTOMER: { ar: 'عميل معتمد', en: 'Customer', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+    CUSTOMER: { ar: 'عميل معتمد', en: 'Customer', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+    SUPPLIER: { ar: 'مورد معتمد', en: 'Supplier', color: 'bg-cyan-100 text-cyan-800 border-cyan-200' }
   };
 
   const currentRoleInfo = roleLabels[currentRole] || roleLabels.MANAGEMENT;

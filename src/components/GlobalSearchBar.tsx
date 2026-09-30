@@ -12,18 +12,38 @@ import {
   Phone,
   Sparkles,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Wrench,
+  Boxes,
+  FileCheck,
+  AlertTriangle,
+  Layers,
+  Users,
+  Compass,
+  ArrowRight,
+  ShieldCheck,
+  Package
 } from 'lucide-react';
 import { ElevatorSpecification, ProjectStatus } from '../types/elevator';
+import { MaintenanceContract, MaintenanceBreakdown } from '../types/maintenance';
+import { InventoryItem } from '../types/inventory';
+import { NavTab } from '../types/navigation';
 import { AppLanguage } from '../utils/translations';
 import { SaudiRiyalSymbol } from './SaudiRiyalSymbol';
 
-interface GlobalSearchBarProps {
+export interface GlobalSearchBarProps {
   projects: ElevatorSpecification[];
   language: AppLanguage;
   onSelectProject: (project: ElevatorSpecification, targetTab?: 'WIZARD' | 'PRINT' | 'DRAWINGS') => void;
   onExportProjectPdf?: (project: ElevatorSpecification) => void;
   className?: string;
+  maintenanceContracts?: MaintenanceContract[];
+  breakdowns?: MaintenanceBreakdown[];
+  inventory?: InventoryItem[];
+  onNavigateTab?: (tab: NavTab) => void;
+  onSelectBreakdown?: (breakdown: MaintenanceBreakdown) => void;
+  onSelectContract?: (contract: MaintenanceContract) => void;
+  onSelectInventoryItem?: (item: InventoryItem) => void;
 }
 
 const STATUS_CONFIG: Record<ProjectStatus, { bg: string; text: string; labelAr: string; labelEn: string }> = {
@@ -47,19 +67,49 @@ function normalizeArabic(text: string): string {
     .trim();
 }
 
+interface QuickNavItem {
+  id: NavTab;
+  labelAr: string;
+  labelEn: string;
+  keywords: string[];
+  icon: React.ElementType;
+  badgeAr: string;
+  badgeEn: string;
+}
+
+const QUICK_NAV_ITEMS: QuickNavItem[] = [
+  { id: 'WIZARD', labelAr: 'حاسبة ومواصفات المصعد', labelEn: 'Quotation Wizard & Specs', keywords: ['حاسبة', 'مواصفات', 'عرض', 'سعر', 'جديد', 'wizard', 'quote'], icon: FileText, badgeAr: 'المبيعات', badgeEn: 'Sales' },
+  { id: 'DRAWINGS', labelAr: 'المخططات الهندسية ونظام التعليق CAD', labelEn: 'CAD Engineering Drawings', keywords: ['مخطط', 'رسم', 'cad', 'drawings', 'هندسة', 'بئر', 'كابينة'], icon: Layers, badgeAr: 'الهندسة', badgeEn: 'Engineering' },
+  { id: 'CUSTOMERS', labelAr: 'سجل وإدارة العملاء CRM', labelEn: 'Customers Directory CRM', keywords: ['عميل', 'عملاء', 'زبائن', 'هاتف', 'customers', 'crm'], icon: Users, badgeAr: 'CRM', badgeEn: 'CRM' },
+  { id: 'SALES_QUOTATIONS', labelAr: 'سجل عروض الأسعار', labelEn: 'Sales Quotations Hub', keywords: ['عروض', 'عقد', 'مبيعات', 'quotations', 'sales'], icon: FileText, badgeAr: 'المبيعات', badgeEn: 'Sales' },
+  { id: 'MAINTENANCE_CONTRACTS', labelAr: 'عقود الصيانة السارية', labelEn: 'Active Maintenance Contracts', keywords: ['عقد صيانة', 'عقود', 'تجديد', 'contracts', 'maintenance'], icon: FileCheck, badgeAr: 'الصيانة', badgeEn: 'Maintenance' },
+  { id: 'MAINTENANCE_BREAKDOWNS', labelAr: 'إدارة بلاغات الأعطال والطوارئ', labelEn: 'Emergency Breakdowns Dispatch', keywords: ['عطل', 'بلاغ', 'طوارئ', 'أعطال', 'فني', 'breakdown', 'emergency'], icon: AlertTriangle, badgeAr: 'الطوارئ', badgeEn: 'Emergency' },
+  { id: 'MAINTENANCE_SCHEDULES', labelAr: 'جدول زيارات الصيانة الدورية', labelEn: 'Maintenance Visit Schedules', keywords: ['زيارات', 'جدول', 'صيانة دورية', 'schedules', 'visits'], icon: Clock, badgeAr: 'الميدان', badgeEn: 'Field' },
+  { id: 'INVENTORY', labelAr: 'المستودع وقطع الغيار والموردين', labelEn: 'Warehouse, Parts & Vendors', keywords: ['مستودع', 'قطع غيار', 'مخزون', 'موردين', 'رصيد', 'inventory', 'parts', 'warehouse'], icon: Boxes, badgeAr: 'المستودع', badgeEn: 'Warehouse' },
+  { id: 'EMPLOYEES', labelAr: 'شؤون الموظفين والمناديب', labelEn: 'Employees & HR Dashboard', keywords: ['موظف', 'موظفين', 'مناديب', 'حضور', 'employees', 'hr'], icon: Users, badgeAr: 'HR', badgeEn: 'HR' },
+  { id: 'SETTINGS', labelAr: 'إعدادات الشركة والتسعير والنسخ الاحتياطي', labelEn: 'Settings & Branding & Backup', keywords: ['إعدادات', 'شركة', 'تسعير', 'نسخ احتياطي', 'واتساب', 'شعار', 'settings', 'backup'], icon: Sparkles, badgeAr: 'النظام', badgeEn: 'System' },
+];
+
 export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
   projects,
   language,
   onSelectProject,
   onExportProjectPdf,
   className = '',
+  maintenanceContracts = [],
+  breakdowns = [],
+  inventory = [],
+  onNavigateTab,
+  onSelectBreakdown,
+  onSelectContract,
+  onSelectInventoryItem,
 }) => {
   const isAr = language === 'ar';
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'WON' | 'QUOTATIONS'>('ALL');
+  const [activeCategory, setActiveCategory] = useState<'ALL' | 'PROJECTS' | 'MAINTENANCE' | 'INVENTORY' | 'PAGES'>('ALL');
   
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -97,29 +147,17 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
   }, []);
 
   // Filter projects by client name, project ID, or quotation reference number
-  const searchResults = useMemo(() => {
+  const projectResults = useMemo(() => {
     const q = normalizeArabic(query);
+    if (!q) return projects.slice(0, 4);
 
-    let list = projects;
-    if (statusFilter === 'WON') {
-      list = list.filter((p) => p.status === 'Won' || p.status === 'Approved' || p.status === 'Installed');
-    } else if (statusFilter === 'QUOTATIONS') {
-      list = list.filter((p) => p.status === 'Draft' || p.status === 'Sent');
-    }
-
-    if (!q) {
-      // When empty query: show recent 5 projects
-      return list.slice(0, 5);
-    }
-
-    return list.filter((p) => {
+    return projects.filter((p) => {
       const matchQuoteRef = normalizeArabic(p.quoteRef || '').includes(q);
       const matchId = normalizeArabic(p.id || '').includes(q);
       const matchClientName = normalizeArabic(p.clientName || '').includes(q);
       const matchProjectName = normalizeArabic(p.projectName || '').includes(q);
       const matchPhone = (p.clientPhone || '').includes(q);
       const matchLocation = normalizeArabic(p.siteLocation || '').includes(q);
-      const matchConsultant = normalizeArabic(p.consultant || '').includes(q);
 
       return (
         matchQuoteRef ||
@@ -127,42 +165,72 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
         matchClientName ||
         matchProjectName ||
         matchPhone ||
-        matchLocation ||
-        matchConsultant
+        matchLocation
       );
+    }).slice(0, 5);
+  }, [projects, query]);
+
+  // Filter maintenance contracts
+  const contractResults = useMemo(() => {
+    if (!maintenanceContracts.length) return [];
+    const q = normalizeArabic(query);
+    if (!q) return maintenanceContracts.slice(0, 2);
+
+    return maintenanceContracts.filter((c) => {
+      const matchNum = normalizeArabic(c.contractNumber || '').includes(q);
+      const matchClient = normalizeArabic(c.customerName || '').includes(q);
+      const matchElevator = normalizeArabic(c.elevatorName || '').includes(q);
+      const matchPhone = (c.customerPhone || '').includes(q);
+      const matchLocation = normalizeArabic(c.siteLocation || '').includes(q);
+      return matchNum || matchClient || matchElevator || matchPhone || matchLocation;
+    }).slice(0, 3);
+  }, [maintenanceContracts, query]);
+
+  // Filter emergency breakdowns
+  const breakdownResults = useMemo(() => {
+    if (!breakdowns.length) return [];
+    const q = normalizeArabic(query);
+    if (!q) return breakdowns.slice(0, 2);
+
+    return breakdowns.filter((b) => {
+      const matchElevator = normalizeArabic(b.elevatorName || '').includes(q);
+      const matchClient = normalizeArabic(b.customerName || '').includes(q);
+      const matchDesc = normalizeArabic(b.description || '').includes(q);
+      const matchPhone = (b.customerPhone || '').includes(q);
+      return matchElevator || matchClient || matchDesc || matchPhone;
+    }).slice(0, 3);
+  }, [breakdowns, query]);
+
+  // Filter inventory items
+  const inventoryResults = useMemo(() => {
+    if (!inventory.length) return [];
+    const q = normalizeArabic(query);
+    if (!q) return [];
+
+    return inventory.filter((item) => {
+      const matchSku = normalizeArabic(item.sku || '').includes(q);
+      const matchAr = normalizeArabic(item.nameAr || '').includes(q);
+      const matchEn = normalizeArabic(item.nameEn || '').includes(q);
+      const matchSpec = normalizeArabic(item.specification || '').includes(q);
+      return matchSku || matchAr || matchEn || matchSpec;
+    }).slice(0, 3);
+  }, [inventory, query]);
+
+  // Filter quick nav pages
+  const navResults = useMemo(() => {
+    const q = normalizeArabic(query);
+    if (!q) return QUICK_NAV_ITEMS.slice(0, 4);
+
+    return QUICK_NAV_ITEMS.filter((item) => {
+      const matchAr = normalizeArabic(item.labelAr).includes(q);
+      const matchEn = normalizeArabic(item.labelEn).includes(q);
+      const matchKey = item.keywords.some((k) => normalizeArabic(k).includes(q));
+      return matchAr || matchEn || matchKey;
     });
-  }, [projects, query, statusFilter]);
+  }, [query]);
 
-  // Reset selected index when results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [searchResults.length, query]);
-
-  // Keyboard navigation within dropdown
-  const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if (!isOpen) {
-      if (e.key === 'ArrowDown' || e.key === 'Enter') {
-        setIsOpen(true);
-        return;
-      }
-    }
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex((prev) => (prev < searchResults.length - 1 ? prev + 1 : 0));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (searchResults.length > 0 && searchResults[selectedIndex]) {
-        handleOpenProject(searchResults[selectedIndex], 'PRINT');
-      }
-    } else if (e.key === 'Escape') {
-      setIsOpen(false);
-      inputRef.current?.blur();
-    }
-  };
+  // Total results count
+  const totalResultsCount = projectResults.length + contractResults.length + breakdownResults.length + inventoryResults.length + navResults.length;
 
   const handleOpenProject = (project: ElevatorSpecification, tab: 'WIZARD' | 'PRINT' | 'DRAWINGS' = 'PRINT') => {
     onSelectProject(project, tab);
@@ -178,27 +246,65 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
       onSelectProject(project, 'PRINT');
     }
     setIsOpen(false);
+  };
+
+  const handleNavigateToTab = (tab: NavTab) => {
+    if (onNavigateTab) {
+      onNavigateTab(tab);
+    }
+    setIsOpen(false);
+    setIsMobileExpanded(false);
+  };
+
+  const handleOpenBreakdown = (breakdown: MaintenanceBreakdown) => {
+    if (onSelectBreakdown) {
+      onSelectBreakdown(breakdown);
+    } else if (onNavigateTab) {
+      onNavigateTab('MAINTENANCE_BREAKDOWNS');
+    }
+    setIsOpen(false);
+    setIsMobileExpanded(false);
+  };
+
+  const handleOpenContract = (contract: MaintenanceContract) => {
+    if (onSelectContract) {
+      onSelectContract(contract);
+    } else if (onNavigateTab) {
+      onNavigateTab('MAINTENANCE_CONTRACTS');
+    }
+    setIsOpen(false);
+    setIsMobileExpanded(false);
+  };
+
+  const handleOpenInventory = (item: InventoryItem) => {
+    if (onSelectInventoryItem) {
+      onSelectInventoryItem(item);
+    } else if (onNavigateTab) {
+      onNavigateTab('INVENTORY');
+    }
+    setIsOpen(false);
     setIsMobileExpanded(false);
   };
 
   return (
-    <div ref={containerRef} className={`relative flex items-center justify-center ${className}`} dir={isAr ? 'rtl' : 'ltr'}>
-      {/* 1. Mobile Search Icon Button: visible only on mobile (< sm) */}
-      <button
-        type="button"
-        onClick={() => {
-          setIsMobileExpanded(true);
-          setIsOpen(true);
-          setTimeout(() => mobileInputRef.current?.focus(), 80);
-        }}
-        className="sm:hidden p-2 rounded-xl text-amber-400 hover:text-white hover:bg-white/10 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
-        title={isAr ? 'البحث عن المشاريع وعروض الأسعار' : 'Search projects & quotes'}
-        aria-label="Search"
-      >
-        <Search className="w-5 h-5" />
-      </button>
+    <div ref={containerRef} className={`relative w-full ${className}`}>
+      {/* 1. Mobile Search Trigger Icon Button */}
+      <div className="sm:hidden flex items-center">
+        <button
+          type="button"
+          onClick={() => {
+            setIsMobileExpanded(true);
+            setIsOpen(true);
+            setTimeout(() => mobileInputRef.current?.focus(), 150);
+          }}
+          className="p-2 rounded-xl text-blue-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          title={isAr ? 'البحث العام والتنقل السريع (Ctrl+K)' : 'Global Search & Quick Access (Ctrl+K)'}
+        >
+          <Search className="w-5 h-5 text-amber-400" />
+        </button>
+      </div>
 
-      {/* 2. Desktop Search Input Bar: visible on sm and up */}
+      {/* 2. Desktop Search Input Bar */}
       <div 
         className={`hidden sm:flex relative items-center h-10 w-full min-w-[220px] max-w-lg rounded-xl transition-all duration-200 ${
           isOpen && !isMobileExpanded
@@ -219,11 +325,10 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
             if (!isOpen) setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          onKeyDown={handleInputKeyDown}
           placeholder={
             isAr
-              ? 'بحث سريع بالعميل، كود المشروع، أو رقم العرض...'
-              : 'Search client name, project ID, quote ref...'
+              ? 'بحث ذكي: عميل، مشروع، عطل، صيانة، صنف، أو قسم...'
+              : 'Search client, project, breakdown, contract, parts...'
           }
           className="w-full bg-transparent text-white text-xs sm:text-sm placeholder:text-blue-200/50 focus:outline-hidden pe-8"
         />
@@ -266,7 +371,6 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
                   setQuery(e.target.value);
                   if (!isOpen) setIsOpen(true);
                 }}
-                onKeyDown={handleInputKeyDown}
                 placeholder={
                   isAr
                     ? 'بحث سريع بالعميل، المشروع، أو العرض...'
@@ -302,7 +406,7 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
         </div>
       )}
 
-      {/* Dropdown Results Palette (Rendered either as mobile dropdown or desktop dropdown) */}
+      {/* Dropdown Results Palette */}
       {isOpen && (
         <div 
           className={`bg-white rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden z-50 animate-in fade-in-0 zoom-in-95 duration-150 text-slate-800 ${
@@ -310,197 +414,328 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({
               ? 'fixed inset-x-2 top-16 max-h-[75vh]'
               : 'hidden sm:block absolute start-0 end-0 top-full mt-2'
           }`}
-          style={{ maxHeight: isMobileExpanded ? 'calc(80vh - 65px)' : 'min(500px, 80vh)' }}
+          style={{ maxHeight: isMobileExpanded ? 'calc(80vh - 65px)' : 'min(520px, 80vh)' }}
         >
           {/* Header filter strip */}
           <div className="p-2.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth max-w-full py-0.5">
               <button
                 type="button"
-                onClick={() => setStatusFilter('ALL')}
+                onClick={() => setActiveCategory('ALL')}
                 className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors shrink-0 whitespace-nowrap ${
-                  statusFilter === 'ALL'
+                  activeCategory === 'ALL'
                     ? 'bg-slate-900 text-white shadow-2xs'
                     : 'text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {isAr ? 'كافة المشاريع' : 'All Projects'} ({projects.length})
+                {isAr ? 'الكل' : 'All'}
               </button>
               <button
                 type="button"
-                onClick={() => setStatusFilter('WON')}
+                onClick={() => setActiveCategory('PROJECTS')}
                 className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors shrink-0 whitespace-nowrap ${
-                  statusFilter === 'WON'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {isAr ? 'المعتمدة / الرابحة' : 'Won & Approved'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('QUOTATIONS')}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors shrink-0 whitespace-nowrap ${
-                  statusFilter === 'QUOTATIONS'
+                  activeCategory === 'PROJECTS'
                     ? 'bg-blue-600 text-white shadow-2xs'
                     : 'text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {isAr ? 'عروض الأسعار' : 'Quotations'}
+                {isAr ? 'المشاريع والعروض' : 'Projects'} ({projectResults.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveCategory('MAINTENANCE')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors shrink-0 whitespace-nowrap ${
+                  activeCategory === 'MAINTENANCE'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {isAr ? 'الصيانة والأعطال' : 'Maintenance'} ({contractResults.length + breakdownResults.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveCategory('INVENTORY')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors shrink-0 whitespace-nowrap ${
+                  activeCategory === 'INVENTORY'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {isAr ? 'المستودع' : 'Inventory'} ({inventoryResults.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveCategory('PAGES')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors shrink-0 whitespace-nowrap ${
+                  activeCategory === 'PAGES'
+                    ? 'bg-purple-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {isAr ? 'التنقل السريع' : 'Shortcuts'} ({navResults.length})
               </button>
             </div>
 
             <span className="text-[10px] text-slate-400 hidden sm:inline">
-              {query
-                ? isAr
-                  ? `${searchResults.length} نتائج`
-                  : `${searchResults.length} results`
-                : isAr
-                ? 'آخر المشاريع المضافة'
-                : 'Recent projects'}
+              {query ? (isAr ? 'نتائج فورية' : 'Instant search') : (isAr ? 'الوصول السريع' : 'Quick access')}
             </span>
           </div>
 
           {/* Results List */}
-          <div className="overflow-y-auto max-h-[380px] divide-y divide-slate-100">
-            {searchResults.length === 0 ? (
+          <div className="overflow-y-auto max-h-[390px] divide-y divide-slate-100">
+            {totalResultsCount === 0 ? (
               <div className="py-10 px-4 text-center">
                 <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-xs font-bold text-slate-700">
-                  {isAr ? 'لم يتم العثور على أي مشروع يطابق البحث' : 'No matching projects found'}
+                  {isAr ? 'لم يتم العثور على أي نتائج تطابق البحث' : 'No matching records found'}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
                   {isAr
-                    ? 'جرّب البحث باسم العميل، أو كود المشروع، أو رقم العرض مثل: "TW-QT"'
-                    : 'Try searching by client name, project ID, or quotation ref (e.g. "TW-QT")'}
+                    ? 'جرّب البحث باسم العميل، كود المشروع، عطل، أو اسم قطعة غيار'
+                    : 'Try searching by customer, project, breakdown, or part name'}
                 </p>
               </div>
             ) : (
-              searchResults.map((proj, index) => {
-                const isSelected = index === selectedIndex;
-                const statusInfo = STATUS_CONFIG[proj.status] || STATUS_CONFIG.Draft;
-                
-                return (
-                  <div
-                    key={proj.id}
-                    onClick={() => handleOpenProject(proj, 'PRINT')}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    className={`p-3 transition-colors cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                      isSelected ? 'bg-blue-50/80' : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    {/* Project Metadata */}
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Quotation Reference Badge */}
-                        <span className="font-mono text-[11px] font-black px-2 py-0.5 rounded bg-slate-900 text-amber-300 tracking-wider shrink-0">
-                          {proj.quoteRef || proj.id}
-                        </span>
-
-                        {/* Status Badge */}
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusInfo.bg} ${statusInfo.text}`}>
-                          {isAr ? statusInfo.labelAr : statusInfo.labelEn}
-                        </span>
-
-                        {/* Project ID */}
-                        <span className="text-[10px] text-slate-400 font-mono truncate">
-                          ID: {proj.id}
-                        </span>
-                      </div>
-
-                      {/* Client & Project Name */}
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-blue-700 transition-colors">
-                          {proj.clientName}
-                        </span>
-                        {proj.projectName && proj.projectName !== proj.clientName && (
-                          <span className="text-xs text-slate-500 font-medium">
-                            • {proj.projectName}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Subtitle details: Location, Date, Price */}
-                      <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
-                        {proj.siteLocation && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
-                            <span className="truncate max-w-[150px]">{proj.siteLocation}</span>
-                          </span>
-                        )}
-                        {proj.date && (
-                          <span className="flex items-center gap-1 font-mono text-[10px]">
-                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{proj.date}</span>
-                          </span>
-                        )}
-                        {proj.totalQuotationPrice && (
-                          <span className="font-bold text-slate-800 font-mono">
-                            {proj.totalQuotationPrice.toLocaleString()} <SaudiRiyalSymbol className="w-2.5 h-2.5 inline text-emerald-600" />
-                          </span>
-                        )}
-                      </div>
+              <>
+                {/* 1. Quick Navigation Shortcuts Section */}
+                {(activeCategory === 'ALL' || activeCategory === 'PAGES') && navResults.length > 0 && (
+                  <div className="p-2.5 bg-slate-50/50">
+                    <div className="text-[11px] font-bold text-slate-400 mb-2 flex items-center gap-1.5 px-1">
+                      <Compass className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{isAr ? 'التنقل السريع المباشر للأقسام:' : 'Quick Navigation Shortcuts:'}</span>
                     </div>
-
-                    {/* Quick Action Buttons Toolbar */}
-                    <div className="flex items-center gap-1.5 shrink-0 justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                      {/* 1. Direct PDF Export Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => handleDirectExportPdf(e, proj)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-xs font-bold border border-rose-200 transition-all shadow-2xs group/btn cursor-pointer"
-                        title={isAr ? 'تصدير المستند كملف PDF مباشرة' : 'Export document as PDF directly'}
-                      >
-                        <FileDown className="w-3.5 h-3.5 text-rose-600 group-hover/btn:text-white" />
-                        <span className="text-[11px]">{isAr ? 'تصدير PDF' : 'PDF'}</span>
-                      </button>
-
-                      {/* 2. Open in View & Print */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenProject(proj, 'PRINT');
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold border border-blue-200 transition-all shadow-2xs group/btn cursor-pointer"
-                        title={isAr ? 'عرض وطباعة عرض السعر' : 'View & print quotation'}
-                      >
-                        <Printer className="w-3.5 h-3.5 text-blue-600 group-hover/btn:text-white" />
-                        <span className="text-[11px]">{isAr ? 'عرض وطباعة' : 'View'}</span>
-                      </button>
-
-                      {/* 3. Open in Wizard / Edit */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenProject(proj, 'WIZARD');
-                        }}
-                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
-                        title={isAr ? 'تعديل المواصفات بالمعالج' : 'Edit in specification wizard'}
-                      >
-                        <FileText className="w-3.5 h-3.5 text-slate-500" />
-                        <span className="text-[11px]">{isAr ? 'تعديل' : 'Edit'}</span>
-                      </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {navResults.map((nav) => {
+                        const Icon = nav.icon;
+                        return (
+                          <div
+                            key={nav.id}
+                            onClick={() => handleNavigateToTab(nav.id)}
+                            className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                <Icon className="w-4 h-4" />
+                              </div>
+                              <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 truncate">
+                                {isAr ? nav.labelAr : nav.labelEn}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
+                              {isAr ? nav.badgeAr : nav.badgeEn}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })
+                )}
+
+                {/* 2. Projects & Quotations Section */}
+                {(activeCategory === 'ALL' || activeCategory === 'PROJECTS') && projectResults.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-400 bg-slate-100/70 py-1.5 px-3 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-blue-600" />
+                        <span>{isAr ? 'مشاريع وعروض الأسعار' : 'Projects & Proposals'}</span>
+                      </span>
+                      <span className="text-[10px] font-mono">{projectResults.length}</span>
+                    </div>
+
+                    {projectResults.map((proj) => {
+                      const statusInfo = STATUS_CONFIG[proj.status] || STATUS_CONFIG.Draft;
+                      return (
+                        <div
+                          key={proj.id}
+                          onClick={() => handleOpenProject(proj, 'PRINT')}
+                          className="p-3 transition-colors cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-blue-50/50"
+                        >
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-[11px] font-black px-2 py-0.5 rounded bg-slate-900 text-amber-300 tracking-wider shrink-0">
+                                {proj.quoteRef || proj.id}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusInfo.bg} ${statusInfo.text}`}>
+                                {isAr ? statusInfo.labelAr : statusInfo.labelEn}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-blue-700 transition-colors">
+                                {proj.clientName}
+                              </span>
+                              {proj.projectName && proj.projectName !== proj.clientName && (
+                                <span className="text-xs text-slate-500 font-medium truncate">
+                                  • {proj.projectName}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+                              {proj.siteLocation && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
+                                  <span className="truncate max-w-[150px]">{proj.siteLocation}</span>
+                                </span>
+                              )}
+                              {proj.totalQuotationPrice && (
+                                <span className="font-bold text-slate-800 font-mono">
+                                  {proj.totalQuotationPrice.toLocaleString()} <SaudiRiyalSymbol className="w-2.5 h-2.5 inline text-emerald-600" />
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 justify-end pt-1 sm:pt-0">
+                            <button
+                              type="button"
+                              onClick={(e) => handleDirectExportPdf(e, proj)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-xs font-bold border border-rose-200 transition-all cursor-pointer"
+                              title={isAr ? 'تصدير PDF' : 'PDF'}
+                            >
+                              <FileDown className="w-3 h-3 text-rose-600 group-hover:text-white" />
+                              <span className="text-[10px]">PDF</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenProject(proj, 'PRINT');
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold border border-blue-200 transition-all cursor-pointer"
+                            >
+                              <Printer className="w-3 h-3 text-blue-600 group-hover:text-white" />
+                              <span className="text-[10px]">{isAr ? 'عرض' : 'View'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 3. Maintenance Contracts & Breakdowns Section */}
+                {(activeCategory === 'ALL' || activeCategory === 'MAINTENANCE') && (contractResults.length > 0 || breakdownResults.length > 0) && (
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-400 bg-slate-100/70 py-1.5 px-3 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Wrench className="w-3.5 h-3.5 text-amber-600" />
+                        <span>{isAr ? 'عمليات الصيانة وبلاغات الأعطال' : 'Maintenance & Breakdowns'}</span>
+                      </span>
+                      <span className="text-[10px] font-mono">{contractResults.length + breakdownResults.length}</span>
+                    </div>
+
+                    {/* Breakdowns */}
+                    {breakdownResults.map((b) => (
+                      <div
+                        key={b.id}
+                        onClick={() => handleOpenBreakdown(b)}
+                        className="p-3 transition-colors cursor-pointer group flex items-center justify-between gap-3 hover:bg-amber-50/40"
+                      >
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                              {isAr ? 'بلاغ عطل' : 'Breakdown'}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-900">
+                              {b.elevatorName}
+                            </span>
+                            <span className="text-xs text-slate-500">({b.customerName})</span>
+                          </div>
+                          <p className="text-xs text-slate-600 line-clamp-1">
+                            {b.description}
+                          </p>
+                        </div>
+                        <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 shrink-0">
+                          {b.status}
+                        </span>
+                      </div>
+                    ))}
+
+                    {/* Contracts */}
+                    {contractResults.map((c) => (
+                      <div
+                        key={c.id}
+                        onClick={() => handleOpenContract(c)}
+                        className="p-3 transition-colors cursor-pointer group flex items-center justify-between gap-3 hover:bg-emerald-50/40"
+                      >
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              {isAr ? 'عقد صيانة' : 'Contract'}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-900">
+                              {c.contractNumber}
+                            </span>
+                            <span className="text-xs text-slate-500">• {c.customerName}</span>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            {c.elevatorName} {c.siteLocation ? `• ${c.siteLocation}` : ''}
+                          </p>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                          {c.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 4. Inventory Parts Section */}
+                {(activeCategory === 'ALL' || activeCategory === 'INVENTORY') && inventoryResults.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-400 bg-slate-100/70 py-1.5 px-3 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Boxes className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{isAr ? 'قطع غيار ومواد المستودع' : 'Inventory Items & Spare Parts'}</span>
+                      </span>
+                      <span className="text-[10px] font-mono">{inventoryResults.length}</span>
+                    </div>
+
+                    {inventoryResults.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handleOpenInventory(item)}
+                        className="p-3 transition-colors cursor-pointer group flex items-center justify-between gap-3 hover:bg-emerald-50/40"
+                      >
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                              {item.sku}
+                            </span>
+                            <span className="text-xs font-bold text-slate-900">
+                              {isAr ? item.nameAr : item.nameEn || item.nameAr}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 line-clamp-1">
+                            {item.specification || (isAr ? 'موقع الرف: ' + item.warehouseLocation : 'Bin: ' + item.warehouseLocation)}
+                          </p>
+                        </div>
+                        <div className="text-left shrink-0">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            item.quantityOnHand <= item.minStockLevel
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}>
+                            {item.quantityOnHand} {isAr ? 'متوفر' : 'in stock'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
           {/* Footer Quick Keys Hint */}
           <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-400 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span>↑↓ للتنقل</span>
-              <span>•</span>
-              <span>Enter للفتح</span>
+              <span>Ctrl+K للبحث المباشر</span>
               <span>•</span>
               <span>Esc للإغلاق</span>
             </div>
             <div className="flex items-center gap-1 font-semibold text-slate-600">
               <Sparkles className="w-3 h-3 text-amber-500" />
-              <span>{isAr ? 'نظام البحث الذكي للمشاريع' : 'Smart Project Search'}</span>
+              <span>{isAr ? 'نظام البحث والتنقل السريع ERP' : 'Fast Access ERP Search'}</span>
             </div>
           </div>
         </div>
