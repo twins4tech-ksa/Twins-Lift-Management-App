@@ -40,9 +40,7 @@ import {
   Building2,
   MapPin,
   Boxes,
-  Database,
-  AlertCircle,
-  Clock
+  Database
 } from 'lucide-react';
 import { DatabaseStatusModal, DbStatusInfo } from './components/DatabaseStatusModal';
 import { InventoryItem, InventoryMovement, Vendor } from './types/inventory';
@@ -1369,134 +1367,7 @@ export default function App() {
                 onOpenRenewalEmail={(contract) => setRenewalQuotationContract(contract)}
               />
 
-              {/* 4. PostgreSQL Database Status Check (Icon with rich detailed hover tooltip on failure and status) */}
-              <div className="relative group inline-flex items-center">
-                <button
-                  type="button"
-                  onClick={() => setIsDbModalOpen(true)}
-                  className={`relative inline-flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer border shadow-xs shrink-0 ${
-                    dbStatus.connected
-                      ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/40 hover:bg-emerald-900/50 hover:border-emerald-400'
-                      : 'bg-rose-950/40 text-rose-400 border-rose-500/40 hover:bg-rose-900/50 hover:border-rose-400'
-                  }`}
-                  title={
-                    !dbStatus.connected
-                      ? `${language === 'ar' ? 'قاعدة بيانات PostgreSQL: غير متصل' : 'PostgreSQL Database: Disconnected'}\n${language === 'ar' ? 'رسالة الخطأ:' : 'Error Message:'} ${dbStatus.message || (language === 'ar' ? 'تعذر الاتصال بالخادم' : 'Connection failed')}\n${language === 'ar' ? 'وقت آخر فحص:' : 'Last Checked:'} ${dbStatus.lastChecked ? new Date(dbStatus.lastChecked).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : (language === 'ar' ? 'غير متوفر' : 'N/A')}`
-                      : `${language === 'ar' ? 'قاعدة بيانات PostgreSQL: متصل بنجاح' : 'PostgreSQL Database: Connected'}\n${language === 'ar' ? 'وقت آخر فحص:' : 'Last Checked:'} ${dbStatus.lastChecked ? new Date(dbStatus.lastChecked).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : (language === 'ar' ? 'الآن' : 'Now')}`
-                  }
-                  aria-label="PostgreSQL Database Status"
-                >
-                  <Database className={`w-5 h-5 shrink-0 ${dbStatus.connected ? 'text-emerald-400' : 'text-rose-400'}`} />
-                  <span
-                    className={`absolute top-1 right-1 w-2 h-2 rounded-full ring-2 ring-[#0B1E3B] ${
-                      dbStatus.connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
-                    }`}
-                  />
-                </button>
-
-                {/* Detailed Hover Tooltip Card */}
-                <div
-                  className="pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform -translate-y-1 group-hover:translate-y-0 absolute top-full ltr:left-0 rtl:right-0 mt-2.5 z-50 min-w-[270px] max-w-[340px] p-3 rounded-2xl bg-slate-900/98 border border-slate-700/80 shadow-2xl backdrop-blur-md text-xs text-slate-100 select-none"
-                  style={{ minWidth: '275px' }}
-                >
-                  {/* Tooltip Arrow pointing up to the icon */}
-                  <div className="absolute -top-1.5 ltr:left-3.5 rtl:right-3.5 w-3 h-3 bg-slate-900 border-t border-l border-slate-700/80 transform rotate-45" />
-
-                  {/* Tooltip Header */}
-                  <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${
-                          dbStatus.connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
-                        }`}
-                      />
-                      <span className="font-bold text-white text-xs">
-                        {language === 'ar' ? 'قاعدة بيانات PostgreSQL' : 'PostgreSQL Database'}
-                      </span>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        dbStatus.connected
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                      }`}
-                    >
-                      {dbStatus.connected
-                        ? (language === 'ar' ? 'متصل' : 'ONLINE')
-                        : (language === 'ar' ? 'فشل الاتصال' : 'FAILED')}
-                    </span>
-                  </div>
-
-                  {/* Tooltip Body: Failure Details or Operational Info */}
-                  {!dbStatus.connected ? (
-                    <div className="space-y-2">
-                      {/* Specific Error Message */}
-                      <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-800/60 text-rose-200">
-                        <div className="text-[10px] font-semibold text-rose-300/90 uppercase tracking-wider mb-1 flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                          <span>{language === 'ar' ? 'رسالة الخطأ والسبب:' : 'Error Details:'}</span>
-                        </div>
-                        <p className="text-[11px] font-medium leading-relaxed break-words text-rose-100">
-                          {dbStatus.message ||
-                            (language === 'ar'
-                              ? 'تعذر الاتصال بخادم PostgreSQL أو لم يتم إعداد DATABASE_URL'
-                              : 'Connection failed or DATABASE_URL not set')}
-                        </p>
-                      </div>
-
-                      {/* Specific Last-Checked Timestamp */}
-                      <div className="flex items-center justify-between text-[11px] text-slate-300 pt-0.5 px-0.5">
-                        <span className="flex items-center gap-1 text-slate-400">
-                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{language === 'ar' ? 'وقت آخر فحص:' : 'Last Checked:'}</span>
-                        </span>
-                        <span className="font-mono text-slate-100 font-semibold text-[11px] bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
-                          {dbStatus.lastChecked
-                            ? new Date(dbStatus.lastChecked).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                              })
-                            : (language === 'ar' ? 'لم يتم بعد' : 'Not yet')}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5 text-[11px]">
-                      <div className="flex items-center justify-between text-slate-300">
-                        <span className="text-slate-400">{language === 'ar' ? 'الخادم (Host):' : 'Host:'}</span>
-                        <span className="font-mono text-slate-200 font-semibold">{dbStatus.host || 'localhost'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-300">
-                        <span className="text-slate-400">{language === 'ar' ? 'القاعدة (DB):' : 'Database:'}</span>
-                        <span className="font-mono text-slate-200 font-semibold">{dbStatus.database || 'postgres'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-300 pt-1 border-t border-slate-800">
-                        <span className="flex items-center gap-1 text-slate-400">
-                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{language === 'ar' ? 'وقت آخر فحص:' : 'Last Checked:'}</span>
-                        </span>
-                        <span className="font-mono text-emerald-300 font-semibold text-[11px] bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-500/30">
-                          {dbStatus.lastChecked
-                            ? new Date(dbStatus.lastChecked).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                              })
-                            : (language === 'ar' ? 'الآن' : 'Now')}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tooltip Footer Click Hint */}
-                  <div className="mt-2 pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 text-center flex items-center justify-center gap-1">
-                    <span>{language === 'ar' ? '💡 انقر على الأيقونة لفتح نافذة الفحص وإعدادات الربط' : '💡 Click icon to open diagnostics & settings'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 5. Quick Add Button: "جديد" (New button) */}
+              {/* 4. Quick Add Button: "جديد" (New button) */}
               <QuickCreateMenu
                 language={language}
                 currentRole={currentRole}
@@ -1511,6 +1382,30 @@ export default function App() {
                 onNewInventoryItem={() => setActiveTab('INVENTORY')}
                 variant="navbar"
               />
+
+              {/* 5. PostgreSQL Database Status Check (Only icon as database, Green when connected, Red when disconnected) */}
+              <button
+                type="button"
+                onClick={() => setIsDbModalOpen(true)}
+                className={`relative inline-flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer border shadow-xs ${
+                  dbStatus.connected
+                    ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/40 hover:bg-emerald-900/50 hover:border-emerald-400'
+                    : 'bg-rose-950/40 text-rose-400 border-rose-500/40 hover:bg-rose-900/50 hover:border-rose-400'
+                }`}
+                title={
+                  dbStatus.connected
+                    ? (language === 'ar' ? 'قاعدة بيانات PostgreSQL: متصل (انقر للتفاصيل)' : 'PostgreSQL Database: Connected (Click for details)')
+                    : (language === 'ar' ? 'قاعدة بيانات PostgreSQL: غير متصل (انقر للفحص)' : 'PostgreSQL Database: Disconnected (Click to check)')
+                }
+                aria-label="PostgreSQL Database Status"
+              >
+                <Database className={`w-5 h-5 shrink-0 ${dbStatus.connected ? 'text-emerald-400' : 'text-rose-400'}`} />
+                <span
+                  className={`absolute top-1 right-1 w-2 h-2 rounded-full ring-2 ring-[#0B1E3B] ${
+                    dbStatus.connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* CENTER: Global Search Bar */}
