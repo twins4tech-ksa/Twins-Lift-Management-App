@@ -13,12 +13,14 @@ import {
   Save, 
   Send,
   ArrowDownLeft,
-  Share2
+  Share2,
+  Loader2
 } from 'lucide-react';
 import { InventoryItem, PurchaseOrder, PurchaseOrderItem, Vendor } from '../types/inventory';
 import { CompanySettings } from '../types/settings';
 import { AppLanguage } from '../utils/translations';
 import { TwinsLogo } from './TwinsLogo';
+import { sendWhatsAppMessage } from '../services/whatsappService';
 
 interface PurchaseOrderModalProps {
   po?: PurchaseOrder | null;
@@ -62,6 +64,29 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
     po?.paymentTerms || 'آجل 30 يوم (30 Days Net)'
   );
   const [notes, setNotes] = useState<string>(po?.notes || '');
+  const [isSendingWa, setIsSendingWa] = useState(false);
+
+  const handleSendPOWhatsApp = async () => {
+    if (!currentVendor.phone) return;
+    setIsSendingWa(true);
+    const message = isAr
+      ? `السلام عليكم ورحمة الله وبركاته،\nالسادة / *${currentVendor.nameAr}*\nنود تزويدكم بأمر الشراء رقم *${po?.poNumber || 'جديد'}* الصادر من شركة توينز للمصاعد بمبلغ إجمالي *${totalAmount.toLocaleString()} ر.س*.\nيرجى تأكيد التوريد وموعد الشحن.\nشاكرين ومقدرين حسن تعاونكم.`
+      : `Hello ${currentVendor.nameEn || currentVendor.nameAr}, please find Purchase Order ${po?.poNumber || 'New'} with total amount ${totalAmount.toLocaleString()} SAR.`;
+
+    const res = await sendWhatsAppMessage({
+      mobile_no: currentVendor.phone,
+      message,
+      priority: 'high',
+      source: 'twins-po',
+    });
+    setIsSendingWa(false);
+
+    if (res.success) {
+      onShowToast(isAr ? 'تم إرسال أمر الشراء إلى المورد عبر API الخاص بالنظام بنجاح ✅' : 'PO sent via our WhatsApp API successfully ✅');
+    } else {
+      onShowToast(res.error || (isAr ? 'تعذر الإرسال عبر API الواتساب' : 'Failed to send via WhatsApp API'));
+    }
+  };
 
   // Line items state
   const initialItems: PurchaseOrderItem[] = po
@@ -499,17 +524,20 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
             )}
 
             {currentVendor.phone && (
-              <a
-                href={`https://wa.me/${currentVendor.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                  `السلام عليكم، نود تزويدكم بأمر الشراء رقم ${po?.poNumber || 'جديد'} بمبلغ إجمالي ${totalAmount.toLocaleString()} ر.س.`
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs rounded-xl border border-emerald-300 transition-colors"
+              <button
+                type="button"
+                onClick={handleSendPOWhatsApp}
+                disabled={isSendingWa}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                title={isAr ? 'إرسال أمر الشراء عبر API الواتساب المعتمد' : 'Send PO via Official WhatsApp API'}
               >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>{isAr ? 'إرسال بالواتساب' : 'WhatsApp'}</span>
-              </a>
+                {isSendingWa ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Share2 className="w-3.5 h-3.5" />
+                )}
+                <span>{isAr ? 'إرسال بالواتساب (API)' : 'Send via WA API'}</span>
+              </button>
             )}
           </div>
 

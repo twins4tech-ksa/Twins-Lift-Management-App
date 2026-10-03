@@ -63,19 +63,33 @@ export interface ProjectMilestoneData {
   completedBy?: string;
 }
 
+export type CustomerType = 
+  | 'Corporate' 
+  | 'Individual' 
+  | 'Contractor' 
+  | 'Government' 
+  | 'individual' 
+  | 'contractor' 
+  | 'company' 
+  | 'consultant' 
+  | 'government' 
+  | 'INDIVIDUAL';
+
 export interface Customer {
   id: string;
   name: string;
+  nameAr?: string;
   company?: string;
   email?: string;
   phone?: string;
   location?: string;
+  city?: string;
   latitude?: number;
   longitude?: number;
   notes?: string;
   createdAt: string;
   taxNumber?: string;
-  customerType?: 'Corporate' | 'Individual' | 'Contractor' | 'Government';
+  customerType?: CustomerType;
   assignedSalesRepId?: string;
   assignedSalesRepName?: string;
 }
@@ -108,6 +122,8 @@ export interface ElevatorSpecification {
   buildingType: BuildingType;
   capacityKg: number;
   personsCount: number;
+  persons?: number; // Alias for personsCount
+  cabinWeightKg?: number; // Optional estimated cabin weight
   ratedSpeed: number;
   stops: number;
   openings: number;

@@ -42,6 +42,10 @@ import {
   Lock,
   Unlock,
   Shield,
+  Sparkles,
+  Boxes,
+  Receipt,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   Employee,
@@ -51,7 +55,12 @@ import {
   ROLE_CONFIGS,
   EMPLOYEE_STATUS_CONFIG,
   SiteAttendanceRecord,
+  CustomPermissionRule,
+  EmployeeCategoryType,
+  DEFAULT_CUSTOM_RULES,
+  EMPLOYEE_CATEGORY_CONFIGS,
 } from '../types/employee';
+import { CustomRolesModal } from './CustomRolesModal';
 import { ElevatorSpecification } from '../types/elevator';
 import { MaintenanceContract, MaintenanceBreakdown } from '../types/maintenance';
 import { 
@@ -71,6 +80,7 @@ import { useInteractiveTable, InteractiveColumn } from '../hooks/useInteractiveT
 import { InteractiveTableHeader, TableControlBar } from './InteractiveTableHeader';
 import { UserProfile, UserPortalRole, ROLE_PRIVILEGES_MAP } from '../types/portal';
 import { Employee30DayTrendChart } from './Employee30DayTrendChart';
+import { SendWhatsAppModal } from './SendWhatsAppModal';
 
 interface EmployeesDashboardProps {
   employees: Employee[];
@@ -80,8 +90,11 @@ interface EmployeesDashboardProps {
   companySettings: CompanySettings;
   language: AppLanguage;
   attendanceRecords?: SiteAttendanceRecord[];
+  customRules?: CustomPermissionRule[];
   onSaveEmployee: (employee: Employee) => void;
   onDeleteEmployee: (employeeId: string) => void;
+  onSaveCustomRule?: (rule: CustomPermissionRule) => void;
+  onDeleteCustomRule?: (ruleId: string) => void;
   onSelectProject?: (project: ElevatorSpecification) => void;
   onOpenAttendanceModal?: (empId?: string, projId?: string) => void;
   onSwitchUser?: (userProfile: UserProfile) => void;
@@ -95,8 +108,11 @@ export default function EmployeesDashboard({
   companySettings,
   language,
   attendanceRecords = [],
+  customRules,
   onSaveEmployee,
   onDeleteEmployee,
+  onSaveCustomRule,
+  onDeleteCustomRule,
   onSelectProject,
   onOpenAttendanceModal,
   onSwitchUser,
@@ -106,12 +122,54 @@ export default function EmployeesDashboard({
   // Section switcher: Staff directory vs Attendance GPS logs vs KPI Dashboard vs Reports
   const [activeSection, setActiveSection] = useState<'STAFF' | 'ATTENDANCE_LOGS' | 'KPI_DASHBOARD' | 'REPORTS'>('STAFF');
 
+  // Custom Rules & Permissions Builder state
+  const [internalCustomRules, setInternalCustomRules] = useState<CustomPermissionRule[]>(() => {
+    try {
+      const stored = localStorage.getItem('twins_custom_rules');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.warn('Could not read stored custom rules', e);
+    }
+    return DEFAULT_CUSTOM_RULES;
+  });
+
+  const effectiveCustomRules = customRules || internalCustomRules;
+  const [isCustomRolesModalOpen, setIsCustomRolesModalOpen] = useState(false);
+
+  const handleSaveRule = (rule: CustomPermissionRule) => {
+    if (onSaveCustomRule) {
+      onSaveCustomRule(rule);
+    } else {
+      const exists = internalCustomRules.some(r => r.id === rule.id);
+      const updated = exists 
+        ? internalCustomRules.map(r => r.id === rule.id ? rule : r) 
+        : [rule, ...internalCustomRules];
+      setInternalCustomRules(updated);
+      try {
+        localStorage.setItem('twins_custom_rules', JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
+  const handleDeleteRule = (ruleId: string) => {
+    if (onDeleteCustomRule) {
+      onDeleteCustomRule(ruleId);
+    } else {
+      const updated = internalCustomRules.filter(r => r.id !== ruleId);
+      setInternalCustomRules(updated);
+      try {
+        localStorage.setItem('twins_custom_rules', JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
   // KPI Period filter state (قياس هذا شهرياً: 12 زيارة صيانة يومياً و 5 أعطال يومياً)
   const [kpiMonth, setKpiMonth] = useState<string>(() => new Date().toISOString().slice(0, 7)); // e.g. "2026-09"
   const [kpiWorkingDays, setKpiWorkingDays] = useState<number>(DEFAULT_WORKING_DAYS_PER_MONTH);
 
   // Filters state
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('ALL');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
@@ -134,6 +192,7 @@ export default function EmployeesDashboard({
   const [quickIsActive, setQuickIsActive] = useState(true);
   const [showQuickPassword, setShowQuickPassword] = useState(false);
   const [userNotificationToast, setUserNotificationToast] = useState<string | null>(null);
+  const [whatsAppData, setWhatsAppData] = useState<{ isOpen: boolean; phone: string; name: string } | null>(null);
 
   // Quick stats calculations
   const stats = useMemo(() => {
@@ -244,7 +303,21 @@ export default function EmployeesDashboard({
   // Filtered employees
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
-      if (selectedRoleFilter !== 'ALL' && emp.role !== selectedRoleFilter) return false;
+      // Category filter
+      if (selectedCategoryFilter !== 'ALL' && emp.employeeType !== selectedCategoryFilter) {
+        return false;
+      }
+
+      // Role or Custom Rule filter
+      if (selectedRoleFilter !== 'ALL') {
+        if (selectedRoleFilter.startsWith('CUSTOM_RULE:')) {
+          const ruleId = selectedRoleFilter.replace('CUSTOM_RULE:', '');
+          if (emp.customRoleId !== ruleId) return false;
+        } else if (emp.role !== selectedRoleFilter) {
+          return false;
+        }
+      }
+
       if (selectedStatusFilter !== 'ALL' && emp.status !== selectedStatusFilter) return false;
 
       if (searchQuery.trim()) {
@@ -256,14 +329,15 @@ export default function EmployeesDashboard({
         const matchEmail = emp.email.toLowerCase().includes(q);
         const matchTerritory = emp.territory?.toLowerCase().includes(q);
         const matchSpecialty = emp.technicianSpecialty?.toLowerCase().includes(q);
+        const matchCustomRole = emp.customRoleName?.toLowerCase().includes(q);
 
-        if (!matchName && !matchNameEn && !matchCode && !matchPhone && !matchEmail && !matchTerritory && !matchSpecialty) {
+        if (!matchName && !matchNameEn && !matchCode && !matchPhone && !matchEmail && !matchTerritory && !matchSpecialty && !matchCustomRole) {
           return false;
         }
       }
       return true;
     });
-  }, [employees, selectedRoleFilter, selectedStatusFilter, searchQuery]);
+  }, [employees, selectedRoleFilter, selectedCategoryFilter, selectedStatusFilter, searchQuery]);
 
   // Interactive Table Column Definitions
   const employeeColumns: InteractiveColumn<Employee>[] = useMemo(() => [
@@ -443,17 +517,6 @@ export default function EmployeesDashboard({
                       : (isAr ? 'إدارة' : 'Admin')}
                   </span>
                 </span>
-                {onSwitchUser && (
-                  <button
-                    type="button"
-                    onClick={() => handleLoginAsEmployeeUser(emp)}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
-                    title={isAr ? `تسجيل الدخول كـ ${emp.name}` : `Login as ${emp.name}`}
-                  >
-                    <Zap className="w-3 h-3 text-amber-500" />
-                    <span>{isAr ? 'دخول' : 'Login'}</span>
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => handleOpenQuickUserModal(emp)}
@@ -661,8 +724,8 @@ export default function EmployeesDashboard({
     }
   };
 
-  // Handle open create modal for ANY employee role
-  const handleOpenCreateModal = (defaultRole: EmployeeRole = 'SALES_REP') => {
+  // Handle open create modal for ANY employee role or custom rule
+  const handleOpenCreateModal = (defaultRole: EmployeeRole = 'SALES_REP', initialCustomRule?: CustomPermissionRule) => {
     const nextNum = employees.length + 1;
     let codePrefix = 'EMP';
     switch (defaultRole) {
@@ -680,12 +743,34 @@ export default function EmployeesDashboard({
       default: codePrefix = 'EMP'; break;
     }
 
+    let cat: EmployeeCategoryType = 'SALES';
+    if (initialCustomRule) {
+      cat = initialCustomRule.category;
+    } else if (defaultRole === 'SALES_REP') {
+      cat = 'SALES';
+    } else if (defaultRole === 'MAINTENANCE_TECH' || defaultRole === 'MAINTENANCE_MGR') {
+      cat = 'MAINTENANCE';
+    } else if (defaultRole === 'INSTALLATION_ENG' || defaultRole === 'PROJECT_MANAGER') {
+      cat = 'INSTALLATION';
+    } else if (defaultRole === 'ACCOUNTANT') {
+      cat = 'FINANCE';
+    } else if (defaultRole === 'WAREHOUSE_KEEPER') {
+      cat = 'WAREHOUSE';
+    } else if (defaultRole === 'GENERAL_MGR' || defaultRole === 'HR_OFFICER') {
+      cat = 'EXECUTIVE';
+    } else if (defaultRole === 'CUSTOMER_SERVICE' || defaultRole === 'SAFETY_INSPECTOR') {
+      cat = 'CUSTOMER_CARE';
+    }
+
     const newEmp: Employee = {
       id: `emp-${Date.now()}`,
       code: `${codePrefix}-${100 + nextNum}`,
       name: '',
       nameEn: '',
       role: defaultRole,
+      employeeType: cat,
+      customRoleId: initialCustomRule?.id,
+      customRoleName: initialCustomRule?.nameAr,
       phone: '+966 5',
       email: '',
       nationality: 'سعودي',
@@ -767,6 +852,20 @@ export default function EmployeesDashboard({
             <span>{isAr ? 'حضور GPS' : 'GPS Check-In'}</span>
           </button>
 
+          {/* Custom Rules & Permissions Builder Button */}
+          <button
+            type="button"
+            onClick={() => setIsCustomRolesModalOpen(true)}
+            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold rounded-lg shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+            title={isAr ? 'إدارة وتخصيص الأدوار والقواعد (Custom Rules & Permissions)' : 'Custom Rules & Permissions'}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{isAr ? 'الأدوار والقواعد المخصصة' : 'Custom Rules'}</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-600 text-white font-mono font-bold">
+              {effectiveCustomRules.length}
+            </span>
+          </button>
+
           {/* Primary Action: Add Employee with All 11 Roles Selector */}
           <div className="relative">
             <div className="inline-flex rounded-lg shadow-xs">
@@ -789,16 +888,16 @@ export default function EmployeesDashboard({
               </button>
             </div>
 
-            {/* Dropdown Menu listing all roles */}
+            {/* Dropdown Menu listing all roles & custom rules */}
             {isAddRoleMenuOpen && (
               <div 
-                className="absolute end-0 top-full mt-1.5 w-64 max-w-[calc(100vw-24px)] bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150"
+                className="absolute end-0 top-full mt-1.5 w-72 max-w-[calc(100vw-24px)] bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150"
                 dir={isAr ? 'rtl' : 'ltr'}
               >
                 <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  {isAr ? 'اختر الدور الوظيفي للموظف الجديد:' : 'Choose role to add:'}
+                  {isAr ? 'الأدوار النظامية الأساسية:' : 'Standard Roles:'}
                 </div>
-                <div className="max-h-72 overflow-y-auto py-1">
+                <div className="max-h-56 overflow-y-auto py-1">
                   {(Object.keys(ROLE_CONFIGS) as EmployeeRole[]).map((roleKey) => {
                     const cfg = ROLE_CONFIGS[roleKey];
                     return (
@@ -825,6 +924,48 @@ export default function EmployeesDashboard({
                       </button>
                     );
                   })}
+                </div>
+
+                {/* Custom Rules Section */}
+                <div className="px-3 py-1.5 border-t border-b border-indigo-100 bg-indigo-50/50 text-[10px] font-bold text-indigo-900 flex items-center justify-between">
+                  <span>{isAr ? 'الأدوار والقواعد المخصصة (Custom Rules):' : 'Custom Rules:'}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddRoleMenuOpen(false);
+                      setIsCustomRolesModalOpen(true);
+                    }}
+                    className="text-indigo-600 hover:underline"
+                  >
+                    {isAr ? '+ إنشاء Rule' : '+ New'}
+                  </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto py-1">
+                  {effectiveCustomRules.map((rule) => (
+                    <button
+                      key={rule.id}
+                      type="button"
+                      onClick={() => {
+                        setIsAddRoleMenuOpen(false);
+                        const defaultRole = rule.category === 'MAINTENANCE' ? 'MAINTENANCE_TECH' : rule.category === 'INSTALLATION' ? 'INSTALLATION_ENG' : rule.category === 'FINANCE' ? 'ACCOUNTANT' : rule.category === 'WAREHOUSE' ? 'WAREHOUSE_KEEPER' : 'SALES_REP';
+                        handleOpenCreateModal(defaultRole as EmployeeRole, rule);
+                      }}
+                      className="w-full px-3 py-2 text-start hover:bg-indigo-50/60 flex items-center justify-between gap-2 text-xs transition-colors cursor-pointer group"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-bold text-indigo-950 group-hover:text-indigo-700 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-indigo-600" />
+                          {rule.nameAr}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {rule.category} • {Object.values(rule.permissions).filter(Boolean).length} {isAr ? 'صلاحيات' : 'perms'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold border border-indigo-200">
+                        {isAr ? 'إسناد' : 'Assign'}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -1349,9 +1490,48 @@ export default function EmployeesDashboard({
 
       {/* Controls & Filter Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        {/* Category / Sector Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-slate-100">
+          <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap ms-1 flex items-center gap-1">
+            <Layers className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{isAr ? 'قطاع الموظف:' : 'Sector:'}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedCategoryFilter('ALL')}
+            className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition-all cursor-pointer ${
+              selectedCategoryFilter === 'ALL'
+                ? 'bg-slate-900 text-white shadow-2xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {isAr ? 'كافة القطاعات' : 'All Sectors'}
+          </button>
+          {(Object.keys(EMPLOYEE_CATEGORY_CONFIGS) as EmployeeCategoryType[]).map((catKey) => {
+            const catConf = EMPLOYEE_CATEGORY_CONFIGS[catKey];
+            const isSelected = selectedCategoryFilter === catKey;
+            const count = employees.filter(e => e.employeeType === catKey).length;
+            return (
+              <button
+                key={catKey}
+                type="button"
+                onClick={() => setSelectedCategoryFilter(catKey)}
+                className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer ${
+                  isSelected
+                    ? `${catConf.badgeBg} ${catConf.badgeText} border ${catConf.badgeBorder} ring-2 ring-indigo-400/50 shadow-2xs`
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>{isAr ? catConf.labelAr : catConf.labelEn}</span>
+                <span className="text-[10px] opacity-75 font-mono">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Role Segmented Filter */}
-          <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold border border-slate-200 overflow-x-auto">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold border border-slate-200 overflow-x-auto">
             <button
               type="button"
               onClick={() => setSelectedRoleFilter('ALL')}
@@ -1486,6 +1666,32 @@ export default function EmployeesDashboard({
             >
               {isAr ? 'مشرفو الجودة والسلامة' : 'Safety & HSE'}
             </button>
+
+            {/* Custom Rules Filter Dropdown */}
+            {effectiveCustomRules.length > 0 && (
+              <select
+                value={selectedRoleFilter.startsWith('CUSTOM_RULE:') ? selectedRoleFilter : ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedRoleFilter(e.target.value);
+                  } else {
+                    setSelectedRoleFilter('ALL');
+                  }
+                }}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  selectedRoleFilter.startsWith('CUSTOM_RULE:')
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50'
+                }`}
+              >
+                <option value="">✨ {isAr ? 'الأدوار المخصصة (Rules)...' : 'Custom Rules...'}</option>
+                {effectiveCustomRules.map(r => (
+                  <option key={r.id} value={`CUSTOM_RULE:${r.id}`}>
+                    ✨ {r.nameAr}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Search, Status, & View Mode Switch */}
@@ -1562,17 +1768,29 @@ export default function EmployeesDashboard({
                 className="bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between group"
               >
                 <div>
-                  {/* Card Header: Code, Role badge, and Status */}
+                  {/* Card Header: Code, Role badge, Category badge, and Status */}
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-900 text-white">
                         {emp.code}
                       </span>
-                      <span
-                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${roleConf.badgeBg} ${roleConf.badgeText} ${roleConf.badgeBorder}`}
-                      >
-                        {isAr ? roleConf.labelAr : roleConf.labelEn}
-                      </span>
+                      {emp.customRoleName ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-indigo-600" />
+                          <span>{emp.customRoleName}</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${roleConf.badgeBg} ${roleConf.badgeText} ${roleConf.badgeBorder}`}
+                        >
+                          {isAr ? roleConf.labelAr : roleConf.labelEn}
+                        </span>
+                      )}
+                      {emp.employeeType && EMPLOYEE_CATEGORY_CONFIGS[emp.employeeType] && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${EMPLOYEE_CATEGORY_CONFIGS[emp.employeeType].badgeBg} ${EMPLOYEE_CATEGORY_CONFIGS[emp.employeeType].badgeText} ${EMPLOYEE_CATEGORY_CONFIGS[emp.employeeType].badgeBorder}`}>
+                          {isAr ? EMPLOYEE_CATEGORY_CONFIGS[emp.employeeType].labelAr : EMPLOYEE_CATEGORY_CONFIGS[emp.employeeType].labelEn}
+                        </span>
+                      )}
                     </div>
 
                     <span
@@ -1615,15 +1833,14 @@ export default function EmployeesDashboard({
                     )}
 
                     {emp.phone && (
-                      <a
-                        href={`https://wa.me/${emp.phone.replace(/[^0-9]/g, '')}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors ms-auto"
-                        title={isAr ? 'مراسلة عبر واتساب' : 'WhatsApp'}
+                      <button
+                        type="button"
+                        onClick={() => setWhatsAppData({ isOpen: true, phone: emp.phone, name: emp.name })}
+                        className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors ms-auto cursor-pointer"
+                        title={isAr ? 'مراسلة عبر API الواتساب المعتمد' : 'Send WhatsApp via API'}
                       >
                         <MessageSquare className="w-4 h-4" />
-                      </a>
+                      </button>
                     )}
 
                     {emp.email && (
@@ -1775,17 +1992,6 @@ export default function EmployeesDashboard({
                           </span>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          {onSwitchUser && (
-                            <button
-                              type="button"
-                              onClick={() => handleLoginAsEmployeeUser(emp)}
-                              className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                              title={isAr ? `تسجيل الدخول كـ ${emp.name}` : `Login as ${emp.name}`}
-                            >
-                              <Zap className="w-3 h-3 text-amber-300" />
-                              <span>{isAr ? 'دخول' : 'Login'}</span>
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() => handleOpenQuickUserModal(emp)}
@@ -2062,57 +2268,276 @@ export default function EmployeesDashboard({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        {isAr ? 'الدور الوظيفي بالمنشأة (Role) *' : 'Role & Department *'}
-                      </label>
-                      <SearchableSelect
-                        value={editingEmployee.role}
-                        onChange={(e) => {
-                          const newRole = e.target.value as EmployeeRole;
-                          const prefixMap: Record<EmployeeRole, string> = {
-                            SALES_REP: 'REP',
-                            MAINTENANCE_TECH: 'TECH',
-                            INSTALLATION_ENG: 'ENG',
-                            PROJECT_MANAGER: 'PM',
-                            MAINTENANCE_MGR: 'MGR',
-                            ACCOUNTANT: 'ACC',
-                            GENERAL_MGR: 'GM',
-                            HR_OFFICER: 'HR',
-                            CUSTOMER_SERVICE: 'CS',
-                            WAREHOUSE_KEEPER: 'WH',
-                            SAFETY_INSPECTOR: 'QC',
-                          };
-                          const prefix = prefixMap[newRole] || 'EMP';
-                          let updatedCode = editingEmployee.code;
-                          if (/^[A-Z]{2,4}-\d+$/.test(updatedCode)) {
-                            const numPart = updatedCode.split('-')[1];
-                            updatedCode = `${prefix}-${numPart}`;
-                          }
-                          setEditingEmployee({
-                            ...editingEmployee,
-                            role: newRole,
-                            code: updatedCode,
-                            portalUser: editingEmployee.portalUser ? {
-                              ...editingEmployee.portalUser,
-                              portalRole: newRole === 'SALES_REP' ? 'SALES_REP' : newRole === 'MAINTENANCE_TECH' ? 'TECHNICIAN' : 'MANAGEMENT',
-                            } : undefined,
-                          });
-                        }}
-                        className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      >
-                        <option value="SALES_REP">{isAr ? 'مندوب مبيعات ومشاريع (Sales Rep)' : 'Sales Representative'}</option>
-                        <option value="MAINTENANCE_TECH">{isAr ? 'فني صيانة ميداني (Maintenance Tech)' : 'Maintenance Technician'}</option>
-                        <option value="INSTALLATION_ENG">{isAr ? 'مهندس تركيبات ومواقع (Installation Engineer)' : 'Installation Engineer'}</option>
-                        <option value="PROJECT_MANAGER">{isAr ? 'مدير مشاريع وتسليم (Project Manager)' : 'Project Manager'}</option>
-                        <option value="MAINTENANCE_MGR">{isAr ? 'مدير إدارة الصيانة (Maintenance Director)' : 'Maintenance Director'}</option>
-                        <option value="ACCOUNTANT">{isAr ? 'محاسب وتدقيق مالي (Accountant)' : 'Financial Accountant'}</option>
-                        <option value="GENERAL_MGR">{isAr ? 'مدير عام / إدارة عليا (General Manager)' : 'General Manager'}</option>
-                        <option value="HR_OFFICER">{isAr ? 'مسؤول شؤون موظفين (HR Officer)' : 'HR Officer'}</option>
-                        <option value="CUSTOMER_SERVICE">{isAr ? 'خدمة عملاء واستقبال (Customer Service)' : 'Customer Service'}</option>
-                        <option value="WAREHOUSE_KEEPER">{isAr ? 'أمين مستودع وقطع غيار (Warehouse Keeper)' : 'Warehouse Keeper'}</option>
-                        <option value="SAFETY_INSPECTOR">{isAr ? 'مشرف جودة وسلامة مهنية (Safety Inspector)' : 'Safety Inspector'}</option>
-                      </SearchableSelect>
+                    {/* SECTION: نوعية الموظف (EMPLOYEE CATEGORY / SECTOR) */}
+                    <div className="sm:col-span-2 p-3.5 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-2xl border border-indigo-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                          <Layers className="w-4 h-4 text-indigo-600" />
+                          <span>{isAr ? 'نوعية وتصنيف الموظف (قطاع العمل) *' : 'Employee Category / Sector *'}</span>
+                        </label>
+                        <span className="text-[10px] text-indigo-700 font-bold">
+                          {isAr ? 'حدد نوعية القطاع لضبط المهام والصلاحيات' : 'Select sector to tailor permissions'}
+                        </span>
+                      </div>
+
+                      {/* Visual Category Selector Cards */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {(Object.keys(EMPLOYEE_CATEGORY_CONFIGS) as EmployeeCategoryType[]).map((catKey) => {
+                          const catConf = EMPLOYEE_CATEGORY_CONFIGS[catKey];
+                          const isSelected = (editingEmployee.employeeType || 'SALES') === catKey;
+                          return (
+                            <button
+                              key={catKey}
+                              type="button"
+                              onClick={() => {
+                                const defRole = catConf.defaultRole;
+                                const prefixMap: Record<EmployeeRole, string> = {
+                                  SALES_REP: 'REP',
+                                  MAINTENANCE_TECH: 'TECH',
+                                  INSTALLATION_ENG: 'ENG',
+                                  PROJECT_MANAGER: 'PM',
+                                  MAINTENANCE_MGR: 'MGR',
+                                  ACCOUNTANT: 'ACC',
+                                  GENERAL_MGR: 'GM',
+                                  HR_OFFICER: 'HR',
+                                  CUSTOMER_SERVICE: 'CS',
+                                  WAREHOUSE_KEEPER: 'WH',
+                                  SAFETY_INSPECTOR: 'QC',
+                                };
+                                const prefix = prefixMap[defRole] || 'EMP';
+                                let updatedCode = editingEmployee.code;
+                                if (/^[A-Z]{2,4}-\d+$/.test(updatedCode)) {
+                                  const numPart = updatedCode.split('-')[1];
+                                  updatedCode = `${prefix}-${numPart}`;
+                                }
+                                setEditingEmployee({
+                                  ...editingEmployee,
+                                  employeeType: catKey,
+                                  role: defRole,
+                                  code: updatedCode,
+                                });
+                              }}
+                              className={`p-2 rounded-xl border text-start transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs ring-2 ring-indigo-400/40'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className={`text-[11px] font-black ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                                  {isAr ? catConf.labelAr : catConf.labelEn}
+                                </span>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                              </div>
+                              <span className={`text-[9px] block truncate mt-0.5 ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                {isAr ? catConf.descriptionAr : ''}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* SECTION: الـ RULE / الدور المطلوب (REQUIRED ROLE & RULE) */}
+                    <div className="sm:col-span-2 p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <label className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                            <span>{isAr ? 'الـ Rule / الدور والصلاحيات المطلوبة للموظف *' : 'Required Role & Permission Rule *'}</span>
+                          </label>
+                          <p className="text-[10px] text-slate-500">
+                            {isAr ? 'اختر دوراً نظامياً معتمداً أو أسند له Rule مخصص تم إنشاؤه' : 'Select standard system role or custom permission rule'}
+                          </p>
+                        </div>
+
+                        {/* Button to open custom rules builder right from inside the employee modal */}
+                        <button
+                          type="button"
+                          onClick={() => setIsCustomRolesModalOpen(true)}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{isAr ? '+ إنشاء أو إدارة الـ Rules المخصصة' : '+ Custom Rules Builder'}</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Selector 1: Standard System Role */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            {isAr ? '1. الدور الوظيفي الأساسي بالمنشأة:' : '1. Standard Job Role:'}
+                          </label>
+                          <SearchableSelect
+                            value={editingEmployee.role}
+                            onChange={(e) => {
+                              const newRole = e.target.value as EmployeeRole;
+                              const prefixMap: Record<EmployeeRole, string> = {
+                                SALES_REP: 'REP',
+                                MAINTENANCE_TECH: 'TECH',
+                                INSTALLATION_ENG: 'ENG',
+                                PROJECT_MANAGER: 'PM',
+                                MAINTENANCE_MGR: 'MGR',
+                                ACCOUNTANT: 'ACC',
+                                GENERAL_MGR: 'GM',
+                                HR_OFFICER: 'HR',
+                                CUSTOMER_SERVICE: 'CS',
+                                WAREHOUSE_KEEPER: 'WH',
+                                SAFETY_INSPECTOR: 'QC',
+                              };
+                              const prefix = prefixMap[newRole] || 'EMP';
+                              let updatedCode = editingEmployee.code;
+                              if (/^[A-Z]{2,4}-\d+$/.test(updatedCode)) {
+                                const numPart = updatedCode.split('-')[1];
+                                updatedCode = `${prefix}-${numPart}`;
+                              }
+                              setEditingEmployee({
+                                ...editingEmployee,
+                                role: newRole,
+                                code: updatedCode,
+                                portalUser: editingEmployee.portalUser ? {
+                                  ...editingEmployee.portalUser,
+                                  portalRole: newRole === 'SALES_REP' ? 'SALES_REP' : newRole === 'MAINTENANCE_TECH' ? 'TECHNICIAN' : 'MANAGEMENT',
+                                } : undefined,
+                              });
+                            }}
+                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          >
+                            <option value="SALES_REP">{isAr ? 'مندوب مبيعات ومشاريع (Sales Rep)' : 'Sales Representative'}</option>
+                            <option value="MAINTENANCE_TECH">{isAr ? 'فني صيانة ميداني (Maintenance Tech)' : 'Maintenance Technician'}</option>
+                            <option value="INSTALLATION_ENG">{isAr ? 'مهندس تركيبات ومواقع (Installation Engineer)' : 'Installation Engineer'}</option>
+                            <option value="PROJECT_MANAGER">{isAr ? 'مدير مشاريع وتسليم (Project Manager)' : 'Project Manager'}</option>
+                            <option value="MAINTENANCE_MGR">{isAr ? 'مدير إدارة الصيانة (Maintenance Director)' : 'Maintenance Director'}</option>
+                            <option value="ACCOUNTANT">{isAr ? 'محاسب وتدقيق مالي (Accountant)' : 'Financial Accountant'}</option>
+                            <option value="GENERAL_MGR">{isAr ? 'مدير عام / إدارة عليا (General Manager)' : 'General Manager'}</option>
+                            <option value="HR_OFFICER">{isAr ? 'مسؤول شؤون موظفين (HR Officer)' : 'HR Officer'}</option>
+                            <option value="CUSTOMER_SERVICE">{isAr ? 'خدمة عملاء واستقبال (Customer Service)' : 'Customer Service'}</option>
+                            <option value="WAREHOUSE_KEEPER">{isAr ? 'أمين مستودع وقطع غيار (Warehouse Keeper)' : 'Warehouse Keeper'}</option>
+                            <option value="SAFETY_INSPECTOR">{isAr ? 'مشرف جودة وسلامة مهنية (Safety Inspector)' : 'Safety Inspector'}</option>
+                          </SearchableSelect>
+                        </div>
+
+                        {/* Selector 2: Custom Permission Rule */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                            <span>{isAr ? '2. الـ Rule المخصص (الصلاحيات المحددة):' : '2. Custom Rule (Permissions):'}</span>
+                            {editingEmployee.customRoleId && (
+                              <button
+                                type="button"
+                                onClick={() => setEditingEmployee({ ...editingEmployee, customRoleId: undefined, customRoleName: undefined })}
+                                className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                              >
+                                {isAr ? 'إلغاء المخصص' : 'Reset'}
+                              </button>
+                            )}
+                          </label>
+                          <SearchableSelect
+                            value={editingEmployee.customRoleId || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (!val) {
+                                setEditingEmployee({
+                                  ...editingEmployee,
+                                  customRoleId: undefined,
+                                  customRoleName: undefined,
+                                });
+                              } else {
+                                const selectedRule = effectiveCustomRules.find(r => r.id === val);
+                                setEditingEmployee({
+                                  ...editingEmployee,
+                                  customRoleId: val,
+                                  customRoleName: selectedRule?.nameAr || val,
+                                  employeeType: selectedRule?.category || editingEmployee.employeeType,
+                                });
+                              }
+                            }}
+                            className="w-full text-xs p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/40 font-bold text-indigo-950 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                          >
+                            <option value="">{isAr ? 'بدون Rule مخصص (صلاحية قياسية حسب الدور)' : 'Standard System Role Privileges'}</option>
+                            {effectiveCustomRules.map((rule) => (
+                              <option key={rule.id} value={rule.id}>
+                                ✨ {rule.nameAr} ({rule.category})
+                              </option>
+                            ))}
+                          </SearchableSelect>
+                        </div>
+                      </div>
+
+                      {/* Active Rule Details Banner */}
+                      {editingEmployee.customRoleId ? (
+                        (() => {
+                          const activeCustomRule = effectiveCustomRules.find(r => r.id === editingEmployee.customRoleId);
+                          if (!activeCustomRule) return null;
+                          const activePermsCount = Object.values(activeCustomRule.permissions).filter(Boolean).length;
+                          return (
+                            <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 text-xs space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                                  <span className="font-black text-indigo-950">
+                                    {isAr ? `الـ Rule المخصص المسند: ${activeCustomRule.nameAr}` : `Assigned Custom Rule: ${activeCustomRule.nameAr}`}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-600 text-white font-bold">
+                                  {activePermsCount} {isAr ? 'صلاحية مفعلة' : 'active perms'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 leading-relaxed">
+                                {activeCustomRule.description || (isAr ? 'يمنح هذا الـ Rule الموظف صلاحيات محددة بدقة في شاشات وميزات التطبيق.' : 'Grants specific custom app capabilities.')}
+                              </p>
+                              {/* Quick permission badges */}
+                              <div className="flex items-center gap-1.5 flex-wrap text-[10px] pt-1">
+                                {activeCustomRule.permissions.canManageInvoicesAndVouchers && (
+                                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                                    ✓ {isAr ? 'فواتير وسندات ZATCA' : 'ZATCA Invoicing'}
+                                  </span>
+                                )}
+                                {activeCustomRule.permissions.canManageSafetyCertificates && (
+                                  <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold border border-rose-300">
+                                    ✓ {isAr ? 'شهادات الدفاع المدني' : 'Civil Defense'}
+                                  </span>
+                                )}
+                                {activeCustomRule.permissions.canViewCadDrawings && (
+                                  <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-300">
+                                    ✓ {isAr ? 'مخططات CAD' : 'CAD'}
+                                  </span>
+                                )}
+                                {activeCustomRule.permissions.canCreateQuotations && (
+                                  <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold border border-blue-300">
+                                    ✓ {isAr ? 'عروض الأسعار' : 'Quotes'}
+                                  </span>
+                                )}
+                                {activeCustomRule.permissions.canDispatchTechnicians && (
+                                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold border border-amber-300">
+                                    ✓ {isAr ? 'توجيه الفنيين' : 'Dispatch'}
+                                  </span>
+                                )}
+                                {activeCustomRule.permissions.canAccessSupplierPortal && (
+                                  <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 font-bold border border-cyan-300">
+                                    ✓ {isAr ? 'بوابة الموردين' : 'Suppliers'}
+                                  </span>
+                                )}
+                                {activeCustomRule.permissions.canCheckInGps && (
+                                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold border border-slate-300">
+                                    ✓ {isAr ? 'بصمة GPS' : 'GPS'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
+                          <span>
+                            {isAr 
+                              ? `يعمل هذا الموظف حالياً بصلاحيات الدور القياسي «${ROLE_CONFIGS[editingEmployee.role]?.labelAr || ''}».`
+                              : `Currently operating under standard role permissions.`}
+                          </span>
+                          <span className="text-emerald-700 font-bold">
+                            {isAr ? 'صلاحيات نظامية معتمدة' : 'Standard'}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -2786,15 +3211,15 @@ export default function EmployeesDashboard({
                   </a>
                 )}
                 {viewingEmployee.phone && (
-                  <a
-                    href={`https://wa.me/${viewingEmployee.phone.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold hover:bg-emerald-100"
+                  <button
+                    type="button"
+                    onClick={() => setWhatsAppData({ isOpen: true, phone: viewingEmployee.phone, name: viewingEmployee.name })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold hover:bg-emerald-100 cursor-pointer"
+                    title={isAr ? 'مراسلة عبر API الواتساب المعتمد' : 'Send WhatsApp via API'}
                   >
                     <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>WhatsApp</span>
-                  </a>
+                    <span>{isAr ? 'واتساب API' : 'WhatsApp API'}</span>
+                  </button>
                 )}
                 {viewingEmployee.email && (
                   <a
@@ -2989,20 +3414,6 @@ export default function EmployeesDashboard({
                     </div>
 
                     <div className="flex items-center gap-2 pt-1 flex-wrap">
-                      {onSwitchUser && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setViewingEmployee(null);
-                            handleLoginAsEmployeeUser(viewingEmployee);
-                          }}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Zap className="w-4 h-4 text-amber-300" />
-                          <span>{isAr ? `تسجيل الدخول المباشر كـ ${viewingEmployee.name}` : `Login as ${viewingEmployee.name}`}</span>
-                        </button>
-                      )}
-
                       <button
                         type="button"
                         onClick={() => handleOpenQuickUserModal(viewingEmployee)}
@@ -3331,6 +3742,45 @@ export default function EmployeesDashboard({
             </form>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* CUSTOM ROLES & PERMISSIONS BUILDER MODAL                                  */}
+      {/* ========================================================================= */}
+      <CustomRolesModal
+        isOpen={isCustomRolesModalOpen}
+        onClose={() => setIsCustomRolesModalOpen(false)}
+        customRules={effectiveCustomRules}
+        onSaveRule={handleSaveRule}
+        onDeleteRule={handleDeleteRule}
+        language={language}
+        onSelectRuleForEmployee={(rule) => {
+          if (editingEmployee) {
+            setEditingEmployee({
+              ...editingEmployee,
+              customRoleId: rule.id,
+              customRoleName: rule.nameAr,
+              employeeType: rule.category,
+            });
+          }
+        }}
+      />
+
+      {/* Official WhatsApp API Messaging Modal */}
+      {whatsAppData && (
+        <SendWhatsAppModal
+          isOpen={Boolean(whatsAppData.isOpen)}
+          onClose={() => setWhatsAppData(null)}
+          defaultPhone={whatsAppData.phone}
+          recipientName={whatsAppData.name}
+          defaultMessage={
+            language === 'ar'
+              ? `السلام عليكم ورحمة الله وبركاته، مرحباً ${whatsAppData.name}.\nتحية طيبة من إدارة شركة توينز للمصاعد.\n`
+              : `Hello ${whatsAppData.name}, Greetings from Twins Elevators Management.\n`
+          }
+          contextTitle={language === 'ar' ? `مراسلة رسمية عبر API - ${whatsAppData.name}` : `Official API Dispatch - ${whatsAppData.name}`}
+          isAr={language === 'ar'}
+        />
       )}
 
       {/* Floating Notification Toast */}

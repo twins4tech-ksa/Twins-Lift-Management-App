@@ -15,6 +15,8 @@ export type NavTab =
   | 'MAINTENANCE_QUOTATIONS'   // عروض أسعار الصيانة
   | 'EMPLOYEES'                // شؤون الموظفين والمناديب
   | 'INVENTORY'                // المستودع وإدارة المخزون وقطع الغيار
+  | 'FINANCE_INVOICES'         // الفوترة وسندات القبض وضريبة ZATCA
+  | 'SAFETY_CERTIFICATES'      // شهادات السلامة ورخص الدفاع المدني
   | 'INTERACTIVE_MAP'          // الخريطة التفاعلية للمواقع والمشاريع
   | 'PRINT'                    // طباعة العرض الفني
   | 'SETTINGS';                // إعدادات الشركة والتسعير

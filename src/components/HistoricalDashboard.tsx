@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ElevatorSpecification, ProjectStatus, ElevatorType, Customer } from '../types/elevator';
+import { ElevatorSpecification, ProjectStatus, ElevatorType, Customer, CustomerType } from '../types/elevator';
 import { 
   Search, 
   Filter, 
@@ -348,14 +348,23 @@ export const HistoricalDashboard: React.FC<Props> = ({
 
   // Modal: Add New Customer
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
-  const [customerModalData, setCustomerModalData] = useState({
+  const [customerModalData, setCustomerModalData] = useState<{
+    name: string;
+    company: string;
+    phone: string;
+    email: string;
+    location: string;
+    taxNumber: string;
+    customerType: CustomerType;
+    notes: string;
+  }>({
     name: '',
     company: '',
     phone: '',
     email: '',
     location: '',
     taxNumber: '',
-    customerType: 'company' as 'individual' | 'company' | 'contractor' | 'government',
+    customerType: 'company',
     notes: '',
   });
 
@@ -750,7 +759,7 @@ export const HistoricalDashboard: React.FC<Props> = ({
 
   // Active maintenance contracts
   const activeMaintenanceContracts = useMemo(() => {
-    return maintenanceContracts.filter((c) => c.status === 'Active' || c.status === 'Pending');
+    return maintenanceContracts.filter((c) => c.status === 'Active' || (c.status as string) === 'Pending');
   }, [maintenanceContracts]);
 
   // Monthly Recurring Revenue (MRR) from maintenance contracts
@@ -2629,11 +2638,11 @@ export const HistoricalDashboard: React.FC<Props> = ({
                     )}
                     {selectedCustomerForDetails.customerType && (
                       <span className="text-[11px] bg-[#b6be49]/20 text-[#b6be49] px-2 py-0.5 rounded font-bold border border-[#b6be49]/30">
-                        {selectedCustomerForDetails.customerType === 'individual'
+                        {selectedCustomerForDetails.customerType.toLowerCase() === 'individual'
                           ? isAr ? 'أفراد / فيلا' : 'Individual'
-                          : selectedCustomerForDetails.customerType === 'contractor'
+                          : selectedCustomerForDetails.customerType.toLowerCase() === 'contractor'
                           ? isAr ? 'مقاول / إنشائي' : 'Contractor'
-                          : selectedCustomerForDetails.customerType === 'government'
+                          : selectedCustomerForDetails.customerType.toLowerCase() === 'government'
                           ? isAr ? 'جهة حكومية' : 'Government'
                           : isAr ? 'شركة ومؤسسة' : 'Company'}
                       </span>

@@ -1105,7 +1105,7 @@ export const QuotationWizard: React.FC<Props> = ({
                       {isAr ? 'الحمولة المقننة وسعة الركاب (Rated Load Capacity)' : 'Rated Load Capacity (kg / Persons Presets)'}
                     </label>
                     <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full font-mono">
-                      {spec.capacityKg} kg / {spec.persons} {isAr ? 'ركاب' : 'persons'}
+                      {spec.capacityKg} kg / {spec.personsCount || spec.persons || Math.round(spec.capacityKg / 75)} {isAr ? 'ركاب' : 'persons'}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">

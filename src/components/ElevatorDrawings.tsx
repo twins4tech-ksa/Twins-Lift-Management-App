@@ -1014,7 +1014,6 @@ export const ElevatorDrawings: React.FC<Props> = ({
               className="w-full max-w-4xl h-full flex items-center justify-center"
             >
               <svg
-                dir="ltr"
                 ref={svgRef}
                 viewBox="0 0 920 690"
                 className="w-full h-auto max-h-[620px] drop-shadow-md rounded-lg"

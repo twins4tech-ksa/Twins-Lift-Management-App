@@ -23,9 +23,12 @@ import {
   ShieldCheck,
   Building2,
   RefreshCw,
+  Receipt,
+  ShieldAlert,
   KeyRound,
   MapPin,
-  Boxes
+  Boxes,
+  LogOut
 } from 'lucide-react';
 
 interface DesktopSidebarProps {
@@ -38,6 +41,7 @@ interface DesktopSidebarProps {
   onGoHome?: () => void;
   onOpenPortalSwitcher: () => void;
   onChangePassword?: () => void;
+  onLogout?: () => void;
   onToggleLanguage: () => void;
   onOpenSheetsModal: () => void;
   onNewQuotation: () => void;
@@ -53,6 +57,7 @@ interface DesktopSidebarProps {
   expiringContractsCount: number;
   inventoryCount?: number;
   lowStockItemsCount?: number;
+  onNewInventoryItem?: () => void;
 }
 
 export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
@@ -65,6 +70,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onGoHome,
   onOpenPortalSwitcher,
   onChangePassword,
+  onLogout,
   onToggleLanguage,
   onOpenSheetsModal,
   onNewQuotation,
@@ -88,7 +94,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
     SALES_REP: { ar: 'مندوب مبيعات', en: 'Sales Rep', color: 'bg-blue-100 text-blue-800 border-blue-200' },
     TECHNICIAN: { ar: 'فني ميداني', en: 'Field Tech', color: 'bg-purple-100 text-purple-800 border-purple-200' },
     CUSTOMER: { ar: 'عميل معتمد', en: 'Customer', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-    SUPPLIER: { ar: 'مورد معتمد', en: 'Supplier', color: 'bg-cyan-100 text-cyan-800 border-cyan-200' }
+    SUPPLIER: { ar: 'مورد معتمد', en: 'Supplier', color: 'bg-cyan-100 text-cyan-800 border-cyan-200' },
+    CUSTOM: { 
+      ar: currentUserProfile.customRoleName || 'صلاحيات مخصصة', 
+      en: currentUserProfile.customRoleName || 'Custom Role', 
+      color: 'bg-indigo-100 text-indigo-800 border-indigo-200' 
+    }
   };
 
   const currentRoleInfo = roleLabels[currentRole] || roleLabels.MANAGEMENT;
@@ -196,6 +207,17 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
+
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                title={isAr ? 'تسجيل الخروج والعودة لصفحة الدخول الرئيسية' : 'Sign Out & Return to Home Login'}
+                className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors text-xs flex items-center cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -276,6 +298,22 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               iconColor="text-rose-500"
             />
 
+            <SectionHeader titleAr="المالية والسلامة والتراخيص" titleEn="Finance & Safety" />
+            <NavItem
+              tab="FINANCE_INVOICES"
+              icon={Receipt}
+              labelAr="الفوترة وسندات القبض"
+              labelEn="Invoices & Receipts (ZATCA)"
+              iconColor="text-emerald-500"
+            />
+            <NavItem
+              tab="SAFETY_CERTIFICATES"
+              icon={ShieldAlert}
+              labelAr="شهادات السلامة والدفاع المدني"
+              labelEn="Safety & Civil Defense"
+              iconColor="text-rose-500"
+            />
+
             <SectionHeader titleAr="التصميم والهندسة" titleEn="Engineering & Design" />
             <NavItem
               tab="WIZARD"
@@ -331,31 +369,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               labelAr="إعدادات الشركة والهوية"
               labelEn="Company Settings"
               iconColor="text-slate-500"
-            />
-
-            <SectionHeader titleAr="البوابات المعتمدة" titleEn="Authorized Portals" />
-            <NavItem
-              tab="CUSTOMER_PORTAL"
-              icon={ShieldCheck}
-              labelAr="بوابة العميل"
-              labelEn="Customer Portal"
-              iconColor="text-emerald-500"
-            />
-            <NavItem
-              tab="TECHNICIAN_PORTAL"
-              icon={Wrench}
-              labelAr="بوابة الفني"
-              labelEn="Technician Portal"
-              iconColor="text-blue-500"
-            />
-            <NavItem
-              tab="SUPPLIER_PORTAL"
-              icon={Building2}
-              labelAr="بوابة المورد"
-              labelEn="Supplier Portal"
-              iconColor="text-amber-500"
-              badge={isAr ? 'للتصميم لاحقاً' : 'Later'}
-              badgeColor="bg-amber-50 text-amber-700 border-amber-200"
             />
           </>
         )}
@@ -515,6 +528,136 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               labelAr="المخطط الهندسي ونظام التعليق"
               labelEn="CAD Drawings & Specs"
               iconColor="text-purple-500"
+            />
+          </>
+        )}
+
+        {/* ================= SUPPLIER ROLE ================= */}
+        {currentRole === 'SUPPLIER' && (
+          <>
+            <SectionHeader titleAr="بوابة المورد المعتمد" titleEn="Supplier Hub" />
+            <NavItem
+              tab="SUPPLIER_PORTAL"
+              icon={Building2}
+              labelAr="لوحة المورد وأوامر التوريد"
+              labelEn="Supplier Dashboard & POs"
+              iconColor="text-indigo-500"
+            />
+            <NavItem
+              tab="INVENTORY"
+              icon={Boxes}
+              labelAr="كتالوج الأصناف والمخزون"
+              labelEn="Parts Catalog & Stock"
+              iconColor="text-amber-500"
+            />
+          </>
+        )}
+
+        {/* ================= CUSTOM ROLE ================= */}
+        {currentRole === 'CUSTOM' && (
+          <>
+            <SectionHeader 
+              titleAr={currentUserProfile.customRoleName || "الأقسام المصرح بها"} 
+              titleEn={currentUserProfile.customRoleName || "Authorized Sections"} 
+            />
+            <NavItem
+              tab="INTERACTIVE_MAP"
+              icon={MapPin}
+              labelAr="الخريطة التفاعلية وتوزيع الفنيين"
+              labelEn="Interactive Map & Techs"
+              iconColor="text-rose-500"
+            />
+            <NavItem
+              tab="CUSTOMERS"
+              icon={Users}
+              labelAr="دليل العملاء"
+              labelEn="Customers Directory"
+              iconColor="text-emerald-500"
+              badge={customersCount}
+              badgeColor="bg-emerald-50 text-emerald-700 border-emerald-200"
+            />
+            <NavItem
+              tab="SALES_QUOTATIONS"
+              icon={Briefcase}
+              labelAr="عروض بيع المصاعد"
+              labelEn="Elevator Sales Quotations"
+              iconColor="text-blue-500"
+            />
+            <NavItem
+              tab="SALES_CONTRACTS"
+              icon={Building2}
+              labelAr="عقود ومشاريع المصاعد"
+              labelEn="Elevator Projects"
+              iconColor="text-indigo-500"
+            />
+            <NavItem
+              tab="DRAWINGS"
+              icon={Layers}
+              labelAr="المخططات الهندسية CAD"
+              labelEn="Engineering CAD Drawings"
+              iconColor="text-amber-500"
+            />
+            <NavItem
+              tab="MAINTENANCE_CONTRACTS"
+              icon={ShieldCheck}
+              labelAr="عقود الصيانة الدورية"
+              labelEn="Maintenance Contracts"
+              iconColor="text-emerald-600"
+              badge={expiringContractsCount > 0 ? `${expiringContractsCount}` : null}
+              badgeColor="bg-amber-50 text-amber-700 border-amber-200"
+            />
+            <NavItem
+              tab="MAINTENANCE_SCHEDULES"
+              icon={Calendar}
+              labelAr="إدارة زيارات الصيانة"
+              labelEn="Maintenance Visits"
+              iconColor="text-purple-500"
+            />
+            <NavItem
+              tab="MAINTENANCE_BREAKDOWNS"
+              icon={AlertTriangle}
+              labelAr="إدارة بلاغات الأعطال"
+              labelEn="Breakdowns Management"
+              iconColor="text-rose-500"
+            />
+            <NavItem
+              tab="FINANCE_INVOICES"
+              icon={Receipt}
+              labelAr="الفوترة وسندات القبض (ZATCA)"
+              labelEn="Invoices & Receipts (ZATCA)"
+              iconColor="text-emerald-600"
+            />
+            <NavItem
+              tab="SAFETY_CERTIFICATES"
+              icon={ShieldAlert}
+              labelAr="شهادات السلامة والدفاع المدني"
+              labelEn="Safety & Civil Defense"
+              iconColor="text-rose-600"
+            />
+            <NavItem
+              tab="INVENTORY"
+              icon={Boxes}
+              labelAr="المستودع والمخزون وقطع الغيار"
+              labelEn="Warehouse & Inventory"
+              iconColor="text-amber-500"
+              badge={inventoryCount}
+              badgeColor="bg-blue-50 text-blue-700 border-blue-200"
+            />
+            <NavItem
+              tab="SUPPLIER_PORTAL"
+              icon={Building2}
+              labelAr="بوابة الموردين وأوامر الشراء"
+              labelEn="Supplier Portal & POs"
+              iconColor="text-cyan-600"
+            />
+            <NavItem
+              tab="EMPLOYEES"
+              icon={Users}
+              labelAr="الموظفون والصلاحيات"
+              labelEn="Staff & Permissions"
+              iconColor="text-purple-600"
+              badge={employeesCount}
+              badgeColor="bg-purple-50 text-purple-700 border-purple-200"
             />
           </>
         )}

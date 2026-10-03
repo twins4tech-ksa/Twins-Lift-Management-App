@@ -40,6 +40,7 @@ export interface MaintenanceVisitReview {
   clientFeedback?: string;
   clientSigned: boolean;
   technicianNotes?: string;
+  notes?: string;
   updatedAt?: string;
 }
 
@@ -84,11 +85,13 @@ export interface MaintenanceBreakdown {
   workPerformed?: string;    // تفاصيل الإصلاح المنفذ
   cost?: number;             // Optional cost if not covered by warranty/contract
   isResolved: boolean;
+  recordedBy?: string;
 }
 
 export interface MaintenanceContract {
   id: string;
   contractRef: string;        // e.g. "MNT-2025-001"
+  contractNumber?: string;    // Alias for contractRef
   elevatorNumber?: string;    // رقم كود المصعد (عقد صيانة جديد، مثلاً MNT-202609-001)
   isContract: boolean;        // true = Maintenance Contract, false = Maintenance Quotation
   title: string;              // e.g. "عقد صيانة مصعد برج الأندلس"
@@ -350,8 +353,8 @@ export const SAMPLE_BREAKDOWNS: MaintenanceBreakdown[] = [
     description: 'المصعد متوقف في الدور الرابع والباب لا يفتح، يوجد أصوات احتكاك عند محاولة النزول.',
     status: 'In_Progress',
     priority: 'High',
-    assignedTechnicianId: 'emp-201',
-    assignedTechnicianName: 'فني / محمد إبراهيم الشناوي',
+    assignedTechnicianId: 'emp-tech',
+    assignedTechnicianName: 'Twins Technician',
     workPerformed: 'فحص ميكانيكي لمحرك الباب وتزييت المسارات وسكك التوجيه.',
     isResolved: false,
   },
@@ -369,8 +372,8 @@ export const SAMPLE_BREAKDOWNS: MaintenanceBreakdown[] = [
     description: 'توقف مفاجئ للمصعد واحتجاز شخصين بالداخل.',
     status: 'Resolved',
     priority: 'Emergency',
-    assignedTechnicianId: 'emp-201',
-    assignedTechnicianName: 'فني / محمد إبراهيم الشناوي',
+    assignedTechnicianId: 'emp-tech',
+    assignedTechnicianName: 'Twins Technician',
     technicianNotes: 'تم فك الاحتجاز خلال 20 دقيقة، المشكلة كانت في حساس الباب وتم إعادة برمجته وتنظيفه.',
     workPerformed: 'إعادة برمجة بطاقة الأمان وتنظيف الحساسات الضوئية واختبار أقفال الأبواب لجميع الوقفات.',
     isResolved: true,
@@ -387,8 +390,8 @@ export const SAMPLE_BREAKDOWNS: MaintenanceBreakdown[] = [
     description: 'المصعد لا يستجيب للطلبات الخارجية واللوحة مطفأة (بدون عقد صيانة مسبق).',
     status: 'Reported',
     priority: 'Medium',
-    assignedTechnicianId: 'emp-202',
-    assignedTechnicianName: 'فني / راجيش كومار برابهاكار',
+    assignedTechnicianId: 'emp-tech',
+    assignedTechnicianName: 'Twins Technician',
     cost: 450,
     isResolved: false,
   },
@@ -406,8 +409,8 @@ export const SAMPLE_BREAKDOWNS: MaintenanceBreakdown[] = [
     description: 'عطل في مفتاح نهاية الشوط والفرملة المفاجئة.',
     status: 'Resolved',
     priority: 'High',
-    assignedTechnicianId: 'emp-201',
-    assignedTechnicianName: 'فني / محمد إبراهيم الشناوي',
+    assignedTechnicianId: 'emp-tech',
+    assignedTechnicianName: 'Twins Technician',
     workPerformed: 'تم استبدال ميكروسويتش نهاية الشوط وضبط التوقف الدقيق.',
     isResolved: true,
   },
@@ -424,8 +427,8 @@ export const SAMPLE_BREAKDOWNS: MaintenanceBreakdown[] = [
     description: 'توقف زر الطابق الثاني واهتزاز خفيف بالكابينة.',
     status: 'Resolved',
     priority: 'Medium',
-    assignedTechnicianId: 'emp-203',
-    assignedTechnicianName: 'فني / سالم مبارك العلي',
+    assignedTechnicianId: 'emp-tech',
+    assignedTechnicianName: 'Twins Technician',
     workPerformed: 'تنظيف سكة التوجيه وتغيير زر الطابق الثاني COP.',
     isResolved: true,
   }
@@ -446,8 +449,8 @@ export const SAMPLE_MAINTENANCE_CONTRACTS: MaintenanceContract[] = [
     siteLocation: 'الرياض - حي العليا - طريق الملك فهد',
     latitude: 24.6980,
     longitude: 46.6850,
-    assignedTechnicianId: 'emp-201',
-    assignedTechnicianName: 'فني / محمد إبراهيم الشناوي',
+    assignedTechnicianId: 'emp-tech',
+    assignedTechnicianName: 'Twins Technician',
     elevatorName: 'مصعد الركاب الرئيسي - MRL سرعة 1.6 م/ث',
     elevatorBrand: 'Twins Gearless MRL',
     elevatorStops: 8,
@@ -594,8 +597,8 @@ export const SAMPLE_MAINTENANCE_CONTRACTS: MaintenanceContract[] = [
     siteLocation: 'جدة - حي الحمراء - كورنيش جدة',
     latitude: 21.5292,
     longitude: 39.1560,
-    assignedTechnicianId: 'emp-202',
-    assignedTechnicianName: 'فني / راجيش كومار برابهاكار',
+    assignedTechnicianId: 'emp-tech',
+    assignedTechnicianName: 'Twins Technician',
     elevatorName: 'مصعد بانوراما زجاجي 10 ركاب',
     elevatorBrand: 'Fuji Panoramic VVVF',
     elevatorStops: 6,

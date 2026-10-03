@@ -1,6 +1,6 @@
 import { NavTab } from './navigation';
 
-export type UserPortalRole = 'MANAGEMENT' | 'TECHNICIAN' | 'CUSTOMER' | 'SALES_REP' | 'SUPPLIER';
+export type UserPortalRole = 'MANAGEMENT' | 'TECHNICIAN' | 'CUSTOMER' | 'SALES_REP' | 'SUPPLIER' | 'CUSTOM';
 
 export interface RolePrivileges {
   role: UserPortalRole;
@@ -43,6 +43,12 @@ export interface UserProfile {
   customerCompany?: string; // Company / Project name
   employeeId?: string;      // Linked employee if role === 'TECHNICIAN' or 'SALES_REP'
   canViewAllDepartmentRecords?: boolean; // إمكانية رؤية كافة سجلات القسم (وليس فقط المسند له)
+  customRoleId?: string;      // الـ Rule المخصص المعتمد
+  customRoleName?: string;    // مسمى الـ Rule المخصص
+  username?: string;          // اسم المستخدم للدخول
+  password?: string;          // الرقم السري الخاص
+  masterPassword?: string;    // الرقم السري الماستر للمستخدم
+  lastLogin?: string;         // تاريخ آخر تسجيل دخول
 }
 
 export const ROLE_PRIVILEGES_MAP: Record<UserPortalRole, RolePrivileges> = {
@@ -171,61 +177,102 @@ export const ROLE_PRIVILEGES_MAP: Record<UserPortalRole, RolePrivileges> = {
     canCheckInGps: false,
     canViewAllDepartmentRecords: false,
   },
+  CUSTOM: {
+    role: 'CUSTOM',
+    titleAr: 'صلاحيات مخصصة (Custom Rule)',
+    titleEn: 'Custom Role & Privileges',
+    subtitleAr: 'صلاحيات محددة ومخصصة بدقة حسب قواعد النظام',
+    subtitleEn: 'Granular permissions tailored dynamically across the application',
+    badgeBg: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+    badgeText: 'text-indigo-700',
+    badgeBorder: 'border-indigo-300',
+    avatarColor: 'bg-indigo-700 text-white',
+    canViewPricing: true,
+    canViewGrossMargins: false,
+    canManageSettings: false,
+    canManageEmployees: false,
+    canManageCustomers: true,
+    canCreateQuotations: true,
+    canViewSalesAnalytics: true,
+    canManageContracts: true,
+    canSignVisits: true,
+    canUpdateBreakdowns: true,
+    canReportBreakdowns: true,
+    canViewCadDrawings: true,
+    canCheckInGps: true,
+    canViewAllDepartmentRecords: false,
+  },
 };
 
 export const SAMPLE_USER_PROFILES: UserProfile[] = [
   {
     id: 'user-mgt-01',
-    name: 'د. خالد بن سلطان (المدير العام)',
-    nameEn: 'Dr. Khalid Al-Sultan (General Manager)',
+    name: 'Twins Admin',
+    nameEn: 'Twins Admin',
     role: 'MANAGEMENT',
-    email: 'gm@twinselevators.com',
+    username: 'admin',
+    email: 'admin@twinselevators.com',
     phone: '+966 50 111 2233',
+    password: 'admin',
+    masterPassword: 'MASTER2026',
     avatarLabel: 'إد',
-    title: 'المدير التنفيذي - كامل الصلاحيات',
+    title: 'المدير العام - كامل الصلاحيات',
+    employeeId: 'emp-admin',
   },
   {
     id: 'user-tech-01',
-    name: 'م. محمد إبراهيم الشناوي',
-    nameEn: 'Eng. Mohamed El-Shennawy',
+    name: 'Twins Technician',
+    nameEn: 'Twins Technician',
     role: 'TECHNICIAN',
-    email: 'm.shennawy@twinselevators.com',
+    username: 'technician',
+    email: 'technician@twinselevators.com',
     phone: '+966 56 123 7890',
+    password: 'password123',
+    masterPassword: 'MASTER2026',
     avatarLabel: 'فن',
-    title: 'كبير فنيي الصيانة والطوارئ',
-    employeeId: 'emp-201',
-  },
-  {
-    id: 'user-cust-01',
-    name: 'شركة العليان العقارية (برج الأندلس)',
-    nameEn: 'Olayan Real Estate (Andalus Tower)',
-    role: 'CUSTOMER',
-    email: 'facilities@olayan-group.sa',
-    phone: '+966 11 478 9900',
-    avatarLabel: 'عم',
-    title: 'عميل معتمد - 2 مصاعد سارية الضمان',
-    customerId: 'cust-1',
-    customerCompany: 'شركة العليان العقارية',
+    title: 'فني الصيانة والطوارئ الميداني',
+    employeeId: 'emp-tech',
   },
   {
     id: 'user-sales-01',
-    name: 'م. أحمد كمال الغامدي',
-    nameEn: 'Eng. Ahmed Al-Ghamdi',
+    name: 'Twins Sales',
+    nameEn: 'Twins Sales',
     role: 'SALES_REP',
-    email: 'ahmed.ghamdi@twinselevators.com',
+    username: 'sales',
+    email: 'sales@twinselevators.com',
     phone: '+966 50 412 8899',
+    password: 'password123',
+    masterPassword: 'MASTER2026',
     avatarLabel: 'مب',
-    title: 'مسؤول مبيعات المشاريع الكبرى',
-    employeeId: 'emp-101',
+    title: 'مسؤول مبيعات المشاريع والعقود',
+    employeeId: 'emp-sales',
+  },
+  {
+    id: 'user-cust-01',
+    name: 'Twins Customer',
+    nameEn: 'Twins Customer',
+    role: 'CUSTOMER',
+    username: 'customer',
+    email: 'customer@twinselevators.com',
+    phone: '+966 11 478 9900',
+    password: 'password123',
+    masterPassword: 'MASTER2026',
+    avatarLabel: 'عم',
+    title: 'عميل معتمد - إدارة وتشغيل المصاعد',
+    customerId: 'cust-twins',
+    customerCompany: 'Twins Customer Co.',
   },
   {
     id: 'user-supp-01',
-    name: 'شركة تورين درايف لأنظمة الجر (المورد)',
-    nameEn: 'Torin Drive Co. (Supplier)',
+    name: 'Twins Supplier',
+    nameEn: 'Twins Supplier',
     role: 'SUPPLIER',
-    email: 'orders@torindrive.com',
+    username: 'supplier',
+    email: 'supplier@twinselevators.com',
     phone: '+966 50 123 4567',
+    password: 'password123',
+    masterPassword: 'MASTER2026',
     avatarLabel: 'ور',
-    title: 'مورد معتمد - أنظمة الجر والمحركات',
+    title: 'مورد معتمد - أنظمة الجر وقطع الغيار',
   },
 ];

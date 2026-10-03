@@ -4,7 +4,7 @@ export type SortDirection = 'asc' | 'desc' | null;
 
 export interface InteractiveColumn<T> {
   id: string;
-  header: string;
+  header: string | React.ReactNode;
   headerAr?: string;
   headerEn?: string;
   sortable?: boolean;

@@ -117,9 +117,11 @@ export const PortalSwitcherModal: React.FC<Props> = ({
           email: t.portalUser?.email || t.email || 'tech@twinselevators.com',
           phone: t.phone || '+966 50 000 0000',
           avatarLabel: 'فن',
-          title: t.portalUser?.userTitle || `${ROLE_CONFIGS[t.role]?.labelAr || 'فني صيانة'} - قسم الطوارئ`,
+          title: t.portalUser?.userTitle || `${t.customRoleName || ROLE_CONFIGS[t.role]?.labelAr || 'فني صيانة'} - قسم الطوارئ`,
           employeeId: t.id,
           canViewAllDepartmentRecords: canViewAllDepartmentRecords,
+          customRoleId: t.customRoleId,
+          customRoleName: t.customRoleName,
         };
         effectiveOnSelect(user);
       } else {
@@ -140,9 +142,11 @@ export const PortalSwitcherModal: React.FC<Props> = ({
           email: s.portalUser?.email || s.email || 'sales@twinselevators.com',
           phone: s.phone || '+966 50 000 0000',
           avatarLabel: 'مب',
-          title: s.portalUser?.userTitle || `${ROLE_CONFIGS[s.role]?.labelAr || 'مسؤول مبيعات'} - قسم المشاريع`,
+          title: s.portalUser?.userTitle || `${s.customRoleName || ROLE_CONFIGS[s.role]?.labelAr || 'مسؤول مبيعات'} - قسم المشاريع`,
           employeeId: s.id,
           canViewAllDepartmentRecords: canViewAllDepartmentRecords,
+          customRoleId: s.customRoleId,
+          customRoleName: s.customRoleName,
         };
         effectiveOnSelect(user);
       } else {
@@ -152,6 +156,18 @@ export const PortalSwitcherModal: React.FC<Props> = ({
           canViewAllDepartmentRecords: canViewAllDepartmentRecords,
         });
       }
+    } else if (selectedRole === 'SUPPLIER') {
+      const base = SAMPLE_USER_PROFILES.find((p) => p.role === 'SUPPLIER') || {
+        id: 'user-supplier-torin',
+        name: 'شركة تورين درايف (المورد المعتمد)',
+        role: 'SUPPLIER',
+        email: 'supplier@torindrive.com',
+        phone: '+966 50 123 4567',
+        avatarLabel: 'مو',
+        title: 'مورد معتمد - ماكينات وأنظمة الجر',
+        canViewAllDepartmentRecords: false,
+      };
+      effectiveOnSelect(base);
     }
     onClose();
   };
@@ -314,6 +330,30 @@ export const PortalSwitcherModal: React.FC<Props> = ({
                   </p>
                 </div>
               </button>
+
+              {/* Supplier Option */}
+              <button
+                type="button"
+                onClick={() => setSelectedRole('SUPPLIER')}
+                className={`p-4 rounded-xl border text-right transition-all flex items-start gap-3 cursor-pointer sm:col-span-2 ${
+                  selectedRole === 'SUPPLIER'
+                    ? 'border-indigo-600 bg-indigo-50/70 shadow-xs ring-2 ring-indigo-500/20'
+                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-black text-slate-900">بوابة المورد المعتمد (Supplier Portal)</span>
+                    {selectedRole === 'SUPPLIER' && <Check className="w-4 h-4 text-indigo-600 font-bold" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    متابعة أوامر الشراء (POs)، كشوفات الحساب والدفعات، فحص واستلام البضاعة بالمستودع، وكتالوج الأصناف المعتمدة مع إرسال الواتساب والطباعة.
+                  </p>
+                </div>
+              </button>
             </div>
           </div>
 
@@ -349,7 +389,7 @@ export const PortalSwitcherModal: React.FC<Props> = ({
               >
                 {technicians.map((t, idx) => (
                   <option key={t.id} value={idx}>
-                    {t.name} ({t.position || (isAr ? 'فني صيانة' : 'Tech')}) - {t.phone}
+                    {t.name} {t.customRoleName ? `[✨ ${t.customRoleName}]` : `(${t.position || (isAr ? 'فني صيانة' : 'Tech')})`} - {t.phone}
                   </option>
                 ))}
               </SearchableSelect>
@@ -368,7 +408,7 @@ export const PortalSwitcherModal: React.FC<Props> = ({
               >
                 {salesReps.map((s, idx) => (
                   <option key={s.id} value={idx}>
-                    {s.name} ({s.position || (isAr ? 'مندوب مبيعات' : 'Sales Rep')}) - {s.phone}
+                    {s.name} {s.customRoleName ? `[✨ ${s.customRoleName}]` : `(${s.position || (isAr ? 'مندوب مبيعات' : 'Sales Rep')})`} - {s.phone}
                   </option>
                 ))}
               </SearchableSelect>

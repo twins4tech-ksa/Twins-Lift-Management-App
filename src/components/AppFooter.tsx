@@ -85,46 +85,7 @@ export const AppFooter: React.FC<AppFooterProps> = ({
             </button>
           </div>
 
-          {/* 2. Portals - Very Small & Compact (بوابة العميل، بوابة الفني، بوابة المورد للتصميم لاحقاً) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
-            {/* Customer Portal - Small */}
-            <button
-              type="button"
-              onClick={() => onNavigateTab ? onNavigateTab('CUSTOMER_PORTAL') : (onGoHome && onGoHome())}
-              className="px-2.5 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-emerald-500/40 hover:border-emerald-400 text-slate-200 hover:text-emerald-300 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title={isAr ? 'بوابة العميل المعتمد' : 'Customer Portal'}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>{isAr ? 'بوابة العميل' : 'Customer'}</span>
-            </button>
-
-            {/* Technician Portal - Small */}
-            <button
-              type="button"
-              onClick={() => onNavigateTab ? onNavigateTab('TECHNICIAN_PORTAL') : (onGoHome && onGoHome())}
-              className="px-2.5 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-blue-500/40 hover:border-blue-400 text-slate-200 hover:text-blue-300 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title={isAr ? 'بوابة الفني الميداني' : 'Technician Portal'}
-            >
-              <Wrench className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span>{isAr ? 'بوابة الفني' : 'Technician'}</span>
-            </button>
-
-            {/* Supplier Portal - Small (For Later Design) */}
-            <button
-              type="button"
-              onClick={() => onNavigateTab ? onNavigateTab('SUPPLIER_PORTAL') : (onGoHome && onGoHome())}
-              className="px-2.5 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-amber-500/40 hover:border-amber-400 text-slate-200 hover:text-amber-300 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title={isAr ? 'بوابة المورد المعتمد - مخصصة للتصميم في المرحلة القادمة' : 'Supplier Portal - Scheduled for upcoming design'}
-            >
-              <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>{isAr ? 'بوابة المورد' : 'Supplier'}</span>
-              <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-amber-500/25 text-amber-300 border border-amber-500/40">
-                {isAr ? 'قريباً' : 'Soon'}
-              </span>
-            </button>
-          </div>
-
-          {/* 3. Direct Contact: Email (Send email directly on click, NO copy) + Egypt & Saudi Phones */}
+          {/* Direct Contact: Email (Send email directly on click, NO copy) + Egypt & Saudi Phones */}
           <div className="flex items-center gap-2.5 sm:gap-4 flex-wrap justify-center text-xs">
             {/* Email - Direct mailto click without copy button */}
             <a

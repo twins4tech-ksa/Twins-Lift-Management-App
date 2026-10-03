@@ -27,6 +27,7 @@ export interface InventoryItem {
   supplier: string;              // Manufacturer / Vendor
   vendorId?: string;             // Linked Vendor ID (e.g. "VND-TORIN")
   location: string;              // Warehouse bin / aisle e.g. "Riyadh Central - Aisle 3B"
+  warehouseLocation?: string;    // Warehouse location alias
   leadTimeDays: number;          // Procurement lead time in days
   lastRestockedAt?: string;      // Date string
   notes?: string;                // Internal notes

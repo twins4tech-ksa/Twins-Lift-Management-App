@@ -40,13 +40,18 @@ import {
   Building2,
   MapPin,
   Boxes,
-  Database
+  Database,
+  Receipt,
+  ShieldAlert,
+  LogOut
 } from 'lucide-react';
 import { DatabaseStatusModal, DbStatusInfo } from './components/DatabaseStatusModal';
-import { InventoryItem, InventoryMovement, Vendor } from './types/inventory';
-import { SAMPLE_INVENTORY, SAMPLE_INVENTORY_MOVEMENTS, SAMPLE_VENDORS } from './data/sampleInventory';
+import { InventoryItem, InventoryMovement, Vendor, PurchaseOrder, PurchaseOrderStatus } from './types/inventory';
+import { SAMPLE_INVENTORY, SAMPLE_INVENTORY_MOVEMENTS, SAMPLE_VENDORS, SAMPLE_PURCHASE_ORDERS } from './data/sampleInventory';
 import { InventoryView } from './components/InventoryView';
 import { MapDashboardView } from './components/MapDashboardView';
+import { FinanceInvoicesView } from './components/FinanceInvoicesView';
+import { SafetyCertificatesView } from './components/SafetyCertificatesView';
 import { 
   syncAllProjectsToSheet, 
   appendQuotationToSheet 
@@ -57,7 +62,7 @@ import { AppLanguage, TRANSLATIONS } from './utils/translations';
 import MaintenanceDashboard from './components/MaintenanceDashboard';
 import { MaintenanceContract, SAMPLE_MAINTENANCE_CONTRACTS, SAMPLE_BREAKDOWNS } from './types/maintenance';
 import EmployeesDashboard from './components/EmployeesDashboard';
-import { Employee, SAMPLE_EMPLOYEES, SAMPLE_ATTENDANCE_RECORDS, SiteAttendanceRecord } from './types/employee';
+import { Employee, SAMPLE_EMPLOYEES, SAMPLE_ATTENDANCE_RECORDS, SiteAttendanceRecord, CustomPermissionRule, DEFAULT_CUSTOM_RULES } from './types/employee';
 import { getContractExpiryInfo } from './utils/maintenanceExpiry';
 import { MaintenanceSchedulesView } from './components/MaintenanceSchedulesView';
 import { MaintenanceBreakdownsView } from './components/MaintenanceBreakdownsView';
@@ -70,7 +75,8 @@ import {
   SAMPLE_USER_PROFILES 
 } from './types/portal';
 import { PortalHeaderBadge } from './components/PortalHeaderBadge';
-import { PortalSwitcherModal } from './components/PortalSwitcherModal';
+import { ModernAuthModal } from './components/ModernAuthModal';
+import { ModernLoginPage } from './components/ModernLoginPage';
 import { CustomerPortalView } from './components/CustomerPortalView';
 import { TechnicianPortalView } from './components/TechnicianPortalView';
 import { DesktopSidebar } from './components/DesktopSidebar';
@@ -95,6 +101,7 @@ const STORAGE_KEY_BREAKDOWNS = 'vvt_elevator_breakdowns_v1';
 const STORAGE_KEY_SETTINGS = 'vvt_elevator_settings_v1';
 const STORAGE_KEY_LANG = 'vvt_elevator_lang_v1';
 const STORAGE_KEY_ACTIVE_PORTAL = 'vvt_elevator_active_portal_v1';
+const STORAGE_KEY_AUTH_STATUS = 'vvt_elevator_auth_status_v1';
 const STORAGE_KEY_INVENTORY = 'vvt_elevator_inventory_v1';
 const STORAGE_KEY_INVENTORY_MOVEMENTS = 'vvt_elevator_inventory_movements_v1';
 const STORAGE_KEY_VENDORS = 'vvt_elevator_vendors_v1';
@@ -193,12 +200,53 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_EMPLOYEES);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.some((e: any) => e.name === 'Twins Admin')) {
+          return parsed;
+        }
+      }
     } catch (e) {
       console.warn('Could not read stored employees', e);
     }
+    try {
+      localStorage.setItem(STORAGE_KEY_EMPLOYEES, JSON.stringify(SAMPLE_EMPLOYEES));
+    } catch (e) {
+      console.warn('Could not cache refreshed employees', e);
+    }
     return SAMPLE_EMPLOYEES;
   });
+
+  // Custom Permission Rules (الأدوار والقواعد المخصصة)
+  const STORAGE_KEY_CUSTOM_RULES = 'twins_custom_rules';
+  const [customRules, setCustomRules] = useState<CustomPermissionRule[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_CUSTOM_RULES);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.warn('Could not read stored custom rules', e);
+    }
+    return DEFAULT_CUSTOM_RULES;
+  });
+
+  const handleSaveCustomRule = (rule: CustomPermissionRule) => {
+    const exists = customRules.some(r => r.id === rule.id);
+    const updated = exists 
+      ? customRules.map(r => r.id === rule.id ? rule : r) 
+      : [rule, ...customRules];
+    setCustomRules(updated);
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_RULES, JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  const handleDeleteCustomRule = (ruleId: string) => {
+    const updated = customRules.filter(r => r.id !== ruleId);
+    setCustomRules(updated);
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_RULES, JSON.stringify(updated));
+    } catch (e) {}
+  };
 
   // Attendance states
   const [attendanceRecords, setAttendanceRecords] = useState<SiteAttendanceRecord[]>(SAMPLE_ATTENDANCE_RECORDS);
@@ -290,6 +338,45 @@ export default function App() {
   const handleDeleteVendor = (vendorId: string) => {
     setVendors((prev) => prev.filter((v) => v.id !== vendorId));
     showToast(language === 'ar' ? 'تم حذف المورد من الدليل' : 'Vendor deleted');
+  };
+
+  // Purchase Orders State (أوامر الشراء والتوريد)
+  const STORAGE_KEY_PURCHASE_ORDERS = 'twins_lift_purchase_orders_v1';
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_PURCHASE_ORDERS);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.warn('Could not read stored purchase orders', e);
+    }
+    return SAMPLE_PURCHASE_ORDERS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_PURCHASE_ORDERS, JSON.stringify(purchaseOrders));
+    } catch (e) {
+      console.warn('Could not save purchase orders to localStorage', e);
+    }
+  }, [purchaseOrders]);
+
+  const handleAddPurchaseOrder = (newPO: PurchaseOrder) => {
+    setPurchaseOrders((prev) => [newPO, ...prev]);
+    showToast(language === 'ar' ? `تم اعتماد أمر الشراء ${newPO.poNumber}` : `Purchase order ${newPO.poNumber} created`);
+  };
+
+  const handleUpdatePOStatus = (poId: string, newStatus: PurchaseOrderStatus) => {
+    setPurchaseOrders((prev) => prev.map((po) => {
+      if (po.id === poId) {
+        return {
+          ...po,
+          status: newStatus,
+          receivedDate: newStatus === 'RECEIVED' ? new Date().toISOString().slice(0, 10) : po.receivedDate
+        };
+      }
+      return po;
+    }));
+    showToast(language === 'ar' ? `تم تحديث حالة أمر الشراء إلى: ${newStatus}` : `PO status updated to ${newStatus}`);
   };
 
   // Inventory CRUD and Stock Adjustment Handlers
@@ -389,7 +476,19 @@ export default function App() {
     );
   };
 
-  const [activeTab, setActiveTab] = useState<NavTab>('CUSTOMERS');
+  const [activeTab, setActiveTab] = useState<NavTab>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_ACTIVE_PORTAL);
+      if (stored && stored !== 'undefined' && stored !== 'null') {
+        const parsed = JSON.parse(stored);
+        if (parsed?.role === 'CUSTOMER') return 'CUSTOMER_PORTAL';
+        if (parsed?.role === 'TECHNICIAN') return 'TECHNICIAN_PORTAL';
+        if (parsed?.role === 'SUPPLIER') return 'SUPPLIER_PORTAL';
+        if (parsed?.role === 'SALES_REP') return 'SALES_QUOTATIONS';
+      }
+    } catch (e) {}
+    return 'CUSTOMERS';
+  });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
@@ -465,29 +564,81 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUserProfile(null);
+    setIsPortalModalOpen(false);
+    try {
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_PORTAL);
+      localStorage.removeItem(STORAGE_KEY_AUTH_STATUS);
+    } catch (e) {
+      console.warn('Could not clear auth session', e);
+    }
     showToast(
       language === 'ar' 
-        ? 'تم تسجيل الخروج بنجاح من الجلسة الحالية' 
-        : 'Logged out successfully from current session'
+        ? 'تم تسجيل الخروج بنجاح والعودة لصفحة الدخول الرئيسية' 
+        : 'Logged out successfully and returned to home login page'
     );
-    setIsPortalModalOpen(true);
+  };
+
+  const handleUpdateEmployeePassword = (employeeId: string, newPass: string) => {
+    setEmployees((prev) => {
+      const updated = prev.map((e) => {
+        if (e.id === employeeId) {
+          return {
+            ...e,
+            portalUser: {
+              ...(e.portalUser || { hasAccount: true }),
+              password: newPass,
+            },
+          };
+        }
+        return e;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY_EMPLOYEES, JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Could not save updated employee password', err);
+      }
+      return updated;
+    });
+    showToast(
+      language === 'ar' 
+        ? 'تم تحديث الرقم السري للمستخدم بنجاح' 
+        : 'User password updated successfully'
+    );
   };
 
   // User Portal & Role-Based Access Control (RBAC)
-  const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile>(() => {
+  const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(() => {
     try {
+      const isAuth = localStorage.getItem(STORAGE_KEY_AUTH_STATUS);
       const stored = localStorage.getItem(STORAGE_KEY_ACTIVE_PORTAL);
-      if (stored && stored !== 'undefined' && stored !== 'null') {
+      if (isAuth === 'true' && stored && stored !== 'undefined' && stored !== 'null') {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object' && parsed.role && ROLE_PRIVILEGES_MAP[parsed.role]) {
+          const matching = SAMPLE_USER_PROFILES.find((p) => p.role === parsed.role);
+          if (matching && (!parsed.name || !parsed.name.startsWith('Twins'))) {
+            return matching;
+          }
           return parsed;
         }
       }
     } catch (e) {
       console.warn('Could not read stored portal profile', e);
     }
-    return SAMPLE_USER_PROFILES[0]; // Default to Management / المدير العام
+    return null; // Default to Home / Login Page!
   });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const isAuth = localStorage.getItem(STORAGE_KEY_AUTH_STATUS);
+      const stored = localStorage.getItem(STORAGE_KEY_ACTIVE_PORTAL);
+      return Boolean(isAuth === 'true' && stored && stored !== 'null' && stored !== 'undefined');
+    } catch {
+      return false;
+    }
+  });
+
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
 
   const currentRole: UserPortalRole = currentUserProfile?.role && ROLE_PRIVILEGES_MAP[currentUserProfile.role] 
@@ -500,8 +651,12 @@ export default function App() {
       : SAMPLE_USER_PROFILES[0];
 
     setCurrentUserProfile(validProfile);
+    setIsAuthenticated(true);
+    setIsPortalModalOpen(false);
+
     try {
       localStorage.setItem(STORAGE_KEY_ACTIVE_PORTAL, JSON.stringify(validProfile));
+      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'true');
     } catch (e) {
       console.warn('Could not save active portal profile', e);
     }
@@ -516,11 +671,34 @@ export default function App() {
     } else if (validProfile.role === 'SALES_REP') {
       setActiveTab('SALES_QUOTATIONS');
       showToast(language === 'ar' ? `مرحباً بك ممثل المبيعات: ${validProfile.name}` : `Welcome Sales Rep: ${validProfile.name}`);
+    } else if (validProfile.role === 'SUPPLIER') {
+      setActiveTab('SUPPLIER_PORTAL');
+      showToast(language === 'ar' ? `مرحباً بك في بوابة المورد المعتمد: ${validProfile.name}` : `Welcome Supplier: ${validProfile.name}`);
     } else {
       setActiveTab('CUSTOMERS');
       showToast(language === 'ar' ? `تم تفعيل صلاحيات الإدارة العليا الكاملة: ${validProfile.name}` : `Admin & Management mode: ${validProfile.name}`);
     }
   };
+
+  // Automatic portal redirection and permission enforcement based on user's authorized role
+  useEffect(() => {
+    if (currentRole === 'CUSTOMER') {
+      const allowedCustomerTabs: NavTab[] = ['CUSTOMER_PORTAL', 'MAINTENANCE_CONTRACTS', 'SALES_QUOTATIONS', 'DRAWINGS'];
+      if (!allowedCustomerTabs.includes(activeTab)) {
+        setActiveTab('CUSTOMER_PORTAL');
+      }
+    } else if (currentRole === 'TECHNICIAN') {
+      const allowedTechTabs: NavTab[] = ['TECHNICIAN_PORTAL', 'MAINTENANCE_CONTRACTS', 'MAINTENANCE_SCHEDULES', 'MAINTENANCE_BREAKDOWNS', 'DRAWINGS', 'INVENTORY'];
+      if (!allowedTechTabs.includes(activeTab)) {
+        setActiveTab('TECHNICIAN_PORTAL');
+      }
+    } else if (currentRole === 'SUPPLIER') {
+      const allowedSupplierTabs: NavTab[] = ['SUPPLIER_PORTAL', 'INVENTORY'];
+      if (!allowedSupplierTabs.includes(activeTab)) {
+        setActiveTab('SUPPLIER_PORTAL');
+      }
+    }
+  }, [currentRole, activeTab]);
 
   // Google Sheets state
   const [sheetsConfig, setSheetsConfig] = useState<{
@@ -1323,6 +1501,36 @@ export default function App() {
     }
   };
 
+  // If not authenticated: The Home Page IS the Beautiful White Login & Access Portal!
+  if (!isAuthenticated || !currentUserProfile) {
+    return (
+      <div dir={language === 'ar' ? 'rtl' : 'ltr'}>
+        <ModernLoginPage
+          onLogin={handleSelectUserProfile}
+          customers={customers}
+          employees={employees}
+          onUpdateEmployeePassword={handleUpdateEmployeePassword}
+          language={language}
+          onToggleLanguage={() => {
+            const nextLang = language === 'ar' ? 'en' : 'ar';
+            setLanguage(nextLang);
+            showToast(nextLang === 'ar' ? 'تم تحويل لغة التطبيق إلى العربية' : 'Switched interface to English');
+          }}
+        />
+
+        {/* Global Toast Notification on Home Login Page */}
+        {toastMessage && (
+          <div className="fixed bottom-5 end-5 z-50 animate-in fade-in duration-200">
+            <div className="bg-slate-900 text-white text-xs sm:text-sm font-bold px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>{toastMessage}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div 
       dir={language === 'ar' ? 'rtl' : 'ltr'} 
@@ -1433,7 +1641,7 @@ export default function App() {
                 }}
                 onSelectContract={(contract) => {
                   setActiveTab('MAINTENANCE_CONTRACTS');
-                  showToast(language === 'ar' ? `تم فتح عقد الصيانة: ${contract.contractNumber}` : `Opened contract: ${contract.contractNumber}`);
+                  showToast(language === 'ar' ? `تم فتح عقد الصيانة: ${contract.contractRef}` : `Opened contract: ${contract.contractRef}`);
                 }}
                 onSelectInventoryItem={(item) => {
                   setActiveTab('INVENTORY');
@@ -1484,10 +1692,11 @@ export default function App() {
             currentRole={currentRole}
             language={language}
             companySettings={companySettings}
-            currentUserProfile={currentUserProfile}
+            currentUserProfile={currentUserProfile!}
             onGoHome={handleGoHome}
             onOpenPortalSwitcher={() => setIsPortalModalOpen(true)}
             onChangePassword={() => setIsChangePasswordModalOpen(true)}
+            onLogout={handleLogout}
             onToggleLanguage={() => {
               const nextLang = language === 'ar' ? 'en' : 'ar';
               setLanguage(nextLang);
@@ -1687,7 +1896,7 @@ export default function App() {
                       type="button"
                       onClick={() => { setActiveTab('CUSTOMERS'); setIsMobileMenuOpen(false); }}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                        activeTab === 'CUSTOMERS' || activeTab === 'DASHBOARD'
+                        activeTab === 'CUSTOMERS'
                           ? 'bg-blue-600 text-white shadow-xs font-semibold'
                           : 'text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-medium'
                       }`}
@@ -1796,6 +2005,42 @@ export default function App() {
                         </button>
                         <button
                           type="button"
+                          onClick={() => { setActiveTab('FINANCE_INVOICES'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                            activeTab === 'FINANCE_INVOICES'
+                              ? 'bg-emerald-600 text-white shadow-xs font-semibold'
+                              : 'text-slate-700 hover:text-emerald-600 hover:bg-slate-100 font-medium'
+                          }`}
+                        >
+                          <Receipt className="w-5 h-5 text-emerald-600" />
+                          {language === 'ar' ? 'الفوترة وسندات القبض (ZATCA)' : 'Invoices & Receipts'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveTab('SAFETY_CERTIFICATES'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                            activeTab === 'SAFETY_CERTIFICATES'
+                              ? 'bg-rose-600 text-white shadow-xs font-semibold'
+                              : 'text-slate-700 hover:text-rose-600 hover:bg-slate-100 font-medium'
+                          }`}
+                        >
+                          <ShieldAlert className="w-5 h-5 text-rose-600" />
+                          {language === 'ar' ? 'شهادات السلامة والدفاع المدني' : 'Safety & Civil Defense'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveTab('SUPPLIER_PORTAL'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                            activeTab === 'SUPPLIER_PORTAL'
+                              ? 'bg-indigo-600 text-white shadow-xs font-semibold'
+                              : 'text-slate-700 hover:text-indigo-600 hover:bg-slate-100 font-medium'
+                          }`}
+                        >
+                          <Building2 className="w-5 h-5 text-indigo-600" />
+                          {language === 'ar' ? 'بوابة المورد المعتمد' : 'Supplier Portal'}
+                        </button>
+                        <button
+                          type="button"
                           id="mobile-nav-employees"
                           onClick={() => { setActiveTab('EMPLOYEES'); setIsMobileMenuOpen(false); }}
                           className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
@@ -1844,58 +2089,6 @@ export default function App() {
                           <SettingsIcon className="w-5 h-5 text-amber-600" />
                           {language === 'ar' ? 'إعدادات الشركة' : 'Settings & Branding'}
                         </button>
-
-                        {/* Mobile Portals Links */}
-                        <div className="mt-3 pt-3 border-t border-slate-200">
-                          <div className="px-4 text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-                            {language === 'ar' ? 'البوابات الإلكترونية المعتمدة' : 'Authorized Portals'}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => { setActiveTab('CUSTOMER_PORTAL'); setIsMobileMenuOpen(false); }}
-                            className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl transition-colors ${
-                              activeTab === 'CUSTOMER_PORTAL'
-                                ? 'bg-emerald-600 text-white shadow-xs font-semibold'
-                                : 'text-slate-700 hover:text-emerald-700 hover:bg-slate-100 font-medium'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                              <span>{language === 'ar' ? 'بوابة العميل' : 'Customer Portal'}</span>
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setActiveTab('TECHNICIAN_PORTAL'); setIsMobileMenuOpen(false); }}
-                            className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl transition-colors ${
-                              activeTab === 'TECHNICIAN_PORTAL'
-                                ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                                : 'text-slate-700 hover:text-blue-700 hover:bg-slate-100 font-medium'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Wrench className="w-5 h-5 text-blue-600" />
-                              <span>{language === 'ar' ? 'بوابة الفني' : 'Technician Portal'}</span>
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setActiveTab('SUPPLIER_PORTAL'); setIsMobileMenuOpen(false); }}
-                            className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl transition-colors ${
-                              activeTab === 'SUPPLIER_PORTAL'
-                                ? 'bg-amber-600 text-white shadow-xs font-semibold'
-                                : 'text-slate-700 hover:text-amber-700 hover:bg-slate-100 font-medium'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Building2 className="w-5 h-5 text-amber-600" />
-                              <span>{language === 'ar' ? 'بوابة المورد' : 'Supplier Portal'}</span>
-                            </div>
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                              {language === 'ar' ? 'للتصميم لاحقاً' : 'Later'}
-                            </span>
-                          </button>
-                        </div>
                       </>
                     )}
                   </>
@@ -2002,6 +2195,19 @@ export default function App() {
                     EN
                   </button>
                 </div>
+
+                {/* Mobile Drawer Logout Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="w-full mt-3 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-colors cursor-pointer border border-rose-200"
+                >
+                  <LogOut className="w-4 h-4 text-rose-600" />
+                  <span>{language === 'ar' ? 'تسجيل الخروج والعودة للرئيسية' : 'Sign Out & Return Home'}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2083,7 +2289,7 @@ export default function App() {
                 ? 'ANALYTICS'
                 : undefined
             }
-            onSwitchSection={(sec) => setActiveTab(sec === 'PROJECTS' ? 'PROJECTS' : 'CUSTOMERS')}
+            onSwitchSection={(sec) => setActiveTab(sec === 'PROJECTS' ? 'SALES_QUOTATIONS' : 'CUSTOMERS')}
             onSelectProject={handleSelectProjectFromDashboard}
             onNewQuotation={handleNewQuotation}
             onDeleteProject={handleDeleteProject}
@@ -2162,10 +2368,51 @@ export default function App() {
             <MapDashboardView
               projects={projects}
               maintenanceContracts={maintenanceContracts}
+              employees={employees}
+              breakdowns={breakdowns}
               language={language}
               onSelectProject={handleSelectProjectFromDashboard}
+              onSelectContract={(c) => {
+                setActiveTab('MAINTENANCE_CONTRACTS');
+                showToast(language === 'ar' ? `تم فتح العقد: ${c.contractRef}` : `Opened contract: ${c.contractRef}`);
+              }}
+              onAssignTechnician={(breakdownId, techId) => {
+                const tech = employees.find(e => e.id === techId);
+                setBreakdowns(prev => prev.map(b => b.id === breakdownId ? {
+                  ...b,
+                  assignedTechnicianId: techId,
+                  assignedTechnicianName: tech?.name,
+                  assignedTechnicianPhone: tech?.phone,
+                  status: 'Assigned'
+                } : b));
+                showToast(language === 'ar' ? `تم إسناد البلاغ للفني ${tech?.name || ''}` : `Assigned to ${tech?.name || 'tech'}`);
+              }}
             />
           </div>
+        )}
+
+        {/* Tab: Financial Invoices & Receipt Vouchers (ZATCA) */}
+        {activeTab === 'FINANCE_INVOICES' && (
+          <FinanceInvoicesView
+            contracts={maintenanceContracts}
+            projects={projects}
+            customers={customers}
+            companySettings={companySettings}
+            language={language}
+            onShowToast={showToast}
+          />
+        )}
+
+        {/* Tab: Safety Certificates & Civil Defense */}
+        {activeTab === 'SAFETY_CERTIFICATES' && (
+          <SafetyCertificatesView
+            contracts={maintenanceContracts}
+            projects={projects}
+            customers={customers}
+            companySettings={companySettings}
+            language={language}
+            onShowToast={showToast}
+          />
         )}
 
         {/* Tab 5: Print Quotation Offer */}
@@ -2230,8 +2477,11 @@ export default function App() {
             companySettings={companySettings}
             language={language}
             attendanceRecords={attendanceRecords}
+            customRules={customRules}
             onSaveEmployee={handleSaveEmployee}
             onDeleteEmployee={handleDeleteEmployee}
+            onSaveCustomRule={handleSaveCustomRule}
+            onDeleteCustomRule={handleDeleteCustomRule}
             onSelectProject={handleSelectProjectFromDashboard}
             onOpenAttendanceModal={handleOpenAttendanceModal}
             onSwitchUser={handleSelectUserProfile}
@@ -2325,20 +2575,28 @@ export default function App() {
             }}
             onOpenGpsCheckIn={() => {
               const emp = employees.find((e) => e.id === currentUserProfile.employeeId) || employees[0];
-              if (emp) handleOpenAttendanceModal(emp);
+              if (emp) handleOpenAttendanceModal(emp.id);
             }}
             onOpenDrawings={() => setActiveTab('DRAWINGS')}
             isAr={language === 'ar'}
           />
         )}
 
-        {/* Tab 9: Supplier Portal (For Later Design) */}
+        {/* Tab 9: Supplier Portal (Fully Integrated ERP) */}
         {activeTab === 'SUPPLIER_PORTAL' && (
           <SupplierPortalView
             language={language}
             companySettings={companySettings}
+            currentUser={currentUserProfile}
+            purchaseOrders={purchaseOrders}
+            inventory={inventory}
+            vendors={vendors}
+            onUpdatePOStatus={handleUpdatePOStatus}
+            onAddPurchaseOrder={handleAddPurchaseOrder}
+            onAdjustStock={handleAdjustStock}
             onGoHome={handleGoHome}
             onNavigateTab={(tab) => setActiveTab(tab as any)}
+            onShowToast={showToast}
           />
         )}
       </main>
@@ -2415,8 +2673,8 @@ export default function App() {
         onSaveRecord={handleSaveAttendanceRecord}
       />
 
-      {/* User Portal Role & Privilege Switcher Modal */}
-      <PortalSwitcherModal
+      {/* Modern Unified Login & Access Verification Modal */}
+      <ModernAuthModal
         isOpen={isPortalModalOpen}
         onClose={() => setIsPortalModalOpen(false)}
         currentUser={currentUserProfile}
@@ -2425,6 +2683,7 @@ export default function App() {
         onSelectProfile={handleSelectUserProfile}
         customers={customers}
         employees={employees}
+        onUpdateEmployeePassword={handleUpdateEmployeePassword}
         isAr={language === 'ar'}
       />
 

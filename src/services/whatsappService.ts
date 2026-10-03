@@ -150,7 +150,7 @@ export async function sendWhatsAppMessage(payload: SendWhatsAppPayload): Promise
       if (response.ok && (data.success || data.status === 'queued' || data.outbox_id)) {
         return {
           success: true,
-          message: data.message || 'تمت إضافة الرسالة إلى صف الإرسال بنجاح',
+          message: data.message || 'تم إرسال الرسالة بنجاح عبر API الواتساب الخاص بالنظام (Twins WA API)',
           outbox_id: data.outbox_id,
           raw: data,
           fallbackUrl,

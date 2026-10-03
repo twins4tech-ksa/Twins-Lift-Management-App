@@ -35,7 +35,8 @@ export const SaudiRiyalSymbol: React.FC<SaudiRiyalSymbolProps> = ({
 };
 
 interface SarPriceProps {
-  amount: number;
+  amount?: number;
+  value?: number;
   className?: string;
   symbolClassName?: string;
   showCode?: boolean;
@@ -44,12 +45,14 @@ interface SarPriceProps {
 
 export const SarPrice: React.FC<SarPriceProps> = ({
   amount,
+  value,
   className = '',
   symbolClassName = 'w-[0.85em] h-[0.85em] inline-block align-baseline mr-1 shrink-0',
   showCode = false,
   symbolPosition = 'prefix',
 }) => {
-  const formatted = Math.round(amount).toLocaleString();
+  const finalAmount = typeof amount === 'number' ? amount : (typeof value === 'number' ? value : 0);
+  const formatted = Math.round(finalAmount).toLocaleString();
 
   return (
     <span className={`currency-price inline-flex items-baseline font-mono ${className}`}>

@@ -12,10 +12,16 @@ export interface CompanySettings {
   drawingSettings?: DrawingSettings;
   companyNameAr: string;
   companyNameEn: string;
+  nameAr?: string;                  // alias for companyNameAr
+  nameEn?: string;                  // alias for companyNameEn
   commercialRegistration: string;
+  commercialReg?: string;           // alias for commercialRegistration
   vatNumber: string;
+  taxNumber?: string;               // alias for vatNumber
+  iban?: string;                    // Bank IBAN for invoice payments
   addressAr: string;
   addressEn: string;
+  address?: string;                 // alias for addressAr
   phone: string;
   mobile: string;
   email: string;

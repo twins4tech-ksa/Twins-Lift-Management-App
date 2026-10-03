@@ -500,6 +500,17 @@ export const SAMPLE_HISTORICAL_PROJECTS: ElevatorSpecification[] = [
 
 export const SAMPLE_CUSTOMERS: Customer[] = [
   {
+    id: 'cust-twins',
+    name: 'Twins Customer',
+    company: 'Twins Customer Co.',
+    email: 'customer@twinselevators.com',
+    phone: '+966 11 478 9900',
+    location: 'الرياض - حي العليا، المملكة العربية السعودية',
+    notes: 'بوابة العميل المعتمد - شركة مصاعد التوأم',
+    customerType: 'Corporate',
+    createdAt: '2026-09-08',
+  },
+  {
     id: 'cust-mostafa',
     name: 'مصطفى',
     company: 'فيلا العميل مصطفى السكنية',

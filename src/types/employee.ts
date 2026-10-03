@@ -15,12 +15,263 @@ export type EmployeeRole =
 
 export type EmployeeStatus = 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
 
+export type EmployeeCategoryType = 
+  | 'SALES'           // قطاع المبيعات والتسويق
+  | 'MAINTENANCE'     // قطاع الصيانة والتشغيل والطوارئ
+  | 'INSTALLATION'    // قطاع التركيبات والمشاريع
+  | 'FINANCE'         // قطاع المالية والمحاسبة والتحصيل
+  | 'WAREHOUSE'       // قطاع المستودع وسلاسل الإمداد
+  | 'EXECUTIVE'       // الإدارة العامة والإشرافية
+  | 'CUSTOMER_CARE';  // قطاع خدمة العملاء والجودة
+
+export interface CustomPermissionRule {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  category: EmployeeCategoryType;
+  description?: string;
+  colorTheme: 'indigo' | 'emerald' | 'blue' | 'purple' | 'amber' | 'rose' | 'teal';
+  isCustom: boolean; // true if created by user
+  createdAt: string;
+  permissions: {
+    // 1. Sales & Projects
+    canViewPricing: boolean;
+    canViewGrossMargins: boolean;
+    canCreateQuotations: boolean;
+    canManageSalesContracts: boolean;
+    canViewSalesAnalytics: boolean;
+    canManageCustomers: boolean;
+    canViewCadDrawings: boolean;
+    canPrintQuotations?: boolean;
+    canPrintCadDrawings?: boolean;
+
+    // 2. Maintenance & Operations
+    canManageMaintenanceContracts: boolean;
+    canManageMaintenanceVisits: boolean;
+    canReportBreakdowns: boolean;
+    canUpdateBreakdowns: boolean;
+    canDispatchTechnicians: boolean;
+    canSendWhatsAppAlerts?: boolean;
+
+    // 3. Finance, Stock & Safety
+    canManageInvoicesAndVouchers: boolean;
+    canGenerateZatcaQr?: boolean;
+    canManageSafetyCertificates: boolean;
+    canManageInventoryAndStock: boolean;
+    canAccessSupplierPortal: boolean;
+    canCreatePurchaseOrders?: boolean;
+
+    // 4. Administration & Portals
+    canManageEmployees: boolean;
+    canManageCustomRules?: boolean;
+    canManageSettings: boolean;
+    canCheckInGps: boolean;
+    canPrintDocuments: boolean;
+    canAccessCustomerPortal: boolean;
+    canAccessTechnicianPortal: boolean;
+    canViewAllDepartmentRecords: boolean;
+  };
+}
+
+export interface EmployeeCategoryConfig {
+  category: EmployeeCategoryType;
+  labelAr: string;
+  labelEn: string;
+  descriptionAr: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  defaultRole: EmployeeRole;
+}
+
+export const EMPLOYEE_CATEGORY_CONFIGS: Record<EmployeeCategoryType, EmployeeCategoryConfig> = {
+  SALES: {
+    category: 'SALES',
+    labelAr: 'قطاع المبيعات والتسويق',
+    labelEn: 'Sales & Marketing',
+    descriptionAr: 'عروض الأسعار، عقود البيع، العملاء، والتارقت',
+    badgeBg: 'bg-emerald-50',
+    badgeText: 'text-emerald-700',
+    badgeBorder: 'border-emerald-200',
+    defaultRole: 'SALES_REP',
+  },
+  MAINTENANCE: {
+    category: 'MAINTENANCE',
+    labelAr: 'قطاع الصيانة والتشغيل والطوارئ',
+    labelEn: 'Maintenance & Service',
+    descriptionAr: 'عقود الصيانة، البلاغات، الزيارات الدورية، والبصمة',
+    badgeBg: 'bg-blue-50',
+    badgeText: 'text-blue-700',
+    badgeBorder: 'border-blue-200',
+    defaultRole: 'MAINTENANCE_TECH',
+  },
+  INSTALLATION: {
+    category: 'INSTALLATION',
+    labelAr: 'قطاع التركيبات والمشاريع الهندسية',
+    labelEn: 'Installation & Projects',
+    descriptionAr: 'إشراف المواقع، المخططات الهندسية CAD، وتراخيص الدفاع المدني',
+    badgeBg: 'bg-purple-50',
+    badgeText: 'text-purple-700',
+    badgeBorder: 'border-purple-200',
+    defaultRole: 'INSTALLATION_ENG',
+  },
+  FINANCE: {
+    category: 'FINANCE',
+    labelAr: 'قطاع المالية والمحاسبة والتحصيل',
+    labelEn: 'Finance & Accounting',
+    descriptionAr: 'الفواتير الضريبية ZATCA، سندات القبض، والتقارير المالية',
+    badgeBg: 'bg-emerald-50',
+    badgeText: 'text-emerald-800',
+    badgeBorder: 'border-emerald-300',
+    defaultRole: 'ACCOUNTANT',
+  },
+  WAREHOUSE: {
+    category: 'WAREHOUSE',
+    labelAr: 'قطاع المستودع وسلاسل الإمداد',
+    labelEn: 'Warehouse & Spare Parts',
+    descriptionAr: 'إدارة قطع الغيار، حركات المخزون، وأوامر الشراء',
+    badgeBg: 'bg-amber-50',
+    badgeText: 'text-amber-800',
+    badgeBorder: 'border-amber-300',
+    defaultRole: 'WAREHOUSE_KEEPER',
+  },
+  EXECUTIVE: {
+    category: 'EXECUTIVE',
+    labelAr: 'الإدارة العامة والإشرافية العليا',
+    labelEn: 'Executive Management',
+    descriptionAr: 'كامل صلاحيات النظام، الرقابة، والإعدادات العليا',
+    badgeBg: 'bg-rose-50',
+    badgeText: 'text-rose-700',
+    badgeBorder: 'border-rose-200',
+    defaultRole: 'GENERAL_MGR',
+  },
+  CUSTOMER_CARE: {
+    category: 'CUSTOMER_CARE',
+    labelAr: 'قطاع خدمة العملاء ومراقبة الجودة',
+    labelEn: 'Customer Care & QC',
+    descriptionAr: 'استقبال الاستفسارات، متابعة البلاغات، وقياس الرضا',
+    badgeBg: 'bg-cyan-50',
+    badgeText: 'text-cyan-800',
+    badgeBorder: 'border-cyan-200',
+    defaultRole: 'CUSTOMER_SERVICE',
+  },
+};
+
+export const DEFAULT_CUSTOM_RULES: CustomPermissionRule[] = [
+  {
+    id: 'rule-projects-safety',
+    nameAr: 'مشرف مشاريع وتراخيص دفاع مدني',
+    nameEn: 'Projects & Civil Defense Inspector',
+    category: 'INSTALLATION',
+    description: 'صلاحيات كاملة لعقود البيع والتركيبات، المخططات الهندسية، وشهادات الدفاع المدني والسلامة.',
+    colorTheme: 'indigo',
+    isCustom: false,
+    createdAt: '2026-01-15T08:00:00Z',
+    permissions: {
+      canViewPricing: true,
+      canViewGrossMargins: false,
+      canCreateQuotations: true,
+      canManageSalesContracts: true,
+      canViewSalesAnalytics: true,
+      canManageCustomers: true,
+      canViewCadDrawings: true,
+      canManageMaintenanceContracts: false,
+      canManageMaintenanceVisits: false,
+      canReportBreakdowns: true,
+      canUpdateBreakdowns: true,
+      canDispatchTechnicians: false,
+      canManageInvoicesAndVouchers: false,
+      canManageSafetyCertificates: true,
+      canManageInventoryAndStock: true,
+      canAccessSupplierPortal: false,
+      canManageEmployees: false,
+      canManageSettings: false,
+      canCheckInGps: true,
+      canPrintDocuments: true,
+      canAccessCustomerPortal: false,
+      canAccessTechnicianPortal: false,
+      canViewAllDepartmentRecords: true,
+    }
+  },
+  {
+    id: 'rule-accountant-zatca',
+    nameAr: 'محاسب مالي ومسؤول فواتير ZATCA',
+    nameEn: 'Accountant & ZATCA Invoicing Specialist',
+    category: 'FINANCE',
+    description: 'صلاحيات الفوترة وسندات القبض الإلكترونية، عروض الأسعار، وكشوفات الموردين دون تعديل الإعدادات.',
+    colorTheme: 'emerald',
+    isCustom: false,
+    createdAt: '2026-02-10T09:30:00Z',
+    permissions: {
+      canViewPricing: true,
+      canViewGrossMargins: true,
+      canCreateQuotations: true,
+      canManageSalesContracts: true,
+      canViewSalesAnalytics: true,
+      canManageCustomers: true,
+      canViewCadDrawings: false,
+      canManageMaintenanceContracts: true,
+      canManageMaintenanceVisits: false,
+      canReportBreakdowns: false,
+      canUpdateBreakdowns: false,
+      canDispatchTechnicians: false,
+      canManageInvoicesAndVouchers: true,
+      canManageSafetyCertificates: false,
+      canManageInventoryAndStock: false,
+      canAccessSupplierPortal: true,
+      canManageEmployees: false,
+      canManageSettings: false,
+      canCheckInGps: false,
+      canPrintDocuments: true,
+      canAccessCustomerPortal: false,
+      canAccessTechnicianPortal: false,
+      canViewAllDepartmentRecords: true,
+    }
+  },
+  {
+    id: 'rule-senior-tech-bom',
+    nameAr: 'فني أول صيانة معتمد مع كشف التكلفة وقطع الغيار',
+    nameEn: 'Senior Field Technician with BOM Access',
+    category: 'MAINTENANCE',
+    description: 'مباشرة الأعطال والزيارات، البصمة الجغرافية، كشف أسعار قطع الغيار وطلب التوريد المباشر.',
+    colorTheme: 'blue',
+    isCustom: false,
+    createdAt: '2026-03-01T11:00:00Z',
+    permissions: {
+      canViewPricing: true,
+      canViewGrossMargins: false,
+      canCreateQuotations: false,
+      canManageSalesContracts: false,
+      canViewSalesAnalytics: false,
+      canManageCustomers: true,
+      canViewCadDrawings: true,
+      canManageMaintenanceContracts: true,
+      canManageMaintenanceVisits: true,
+      canReportBreakdowns: true,
+      canUpdateBreakdowns: true,
+      canDispatchTechnicians: true,
+      canManageInvoicesAndVouchers: false,
+      canManageSafetyCertificates: true,
+      canManageInventoryAndStock: true,
+      canAccessSupplierPortal: false,
+      canManageEmployees: false,
+      canManageSettings: false,
+      canCheckInGps: true,
+      canPrintDocuments: true,
+      canAccessCustomerPortal: false,
+      canAccessTechnicianPortal: true,
+      canViewAllDepartmentRecords: false,
+    }
+  }
+];
+
 export interface EmployeePortalUser {
   hasAccount: boolean;
   userId?: string;
   username?: string;
   email?: string;
   password?: string;
+  masterPassword?: string;  // الرقم السري الماستر الخاص بالموظف
   portalRole?: UserPortalRole;
   isActive?: boolean;
   userTitle?: string;
@@ -34,6 +285,7 @@ export interface Employee {
   name: string;               // Arabic Full Name e.g. "م. أحمد كمال الغامدي"
   nameEn?: string;            // English Name e.g. "Eng. Ahmed Al-Ghamdi"
   role: EmployeeRole;
+  position?: string;          // Job title / position
   phone: string;              // Mobile phone e.g. "+966 50 123 4567"
   email: string;              // Work email
   nationalIdOrIqama?: string; // رقم الهوية الوطنية / الإقامة
@@ -63,6 +315,11 @@ export interface Employee {
 
   // For Warehouse & Inventory
   warehouseLocation?: string;   // المستودع المسند / الفرع
+
+  // Custom Role & Category (نوعية الموظف والـ Rule المخصص)
+  employeeType?: EmployeeCategoryType;
+  customRoleId?: string;
+  customRoleName?: string;
 
   notes?: string;
   createdAt: string;
@@ -219,203 +476,208 @@ export const EMPLOYEE_STATUS_CONFIG: Record<EmployeeStatus, { labelAr: string; l
 
 export const SAMPLE_EMPLOYEES: Employee[] = [
   {
-    id: 'emp-101',
-    code: 'REP-101',
-    name: 'م. أحمد كمال الغامدي',
-    nameEn: 'Eng. Ahmed Al-Ghamdi',
-    role: 'SALES_REP',
-    phone: '+966 50 412 8899',
-    email: 'ahmed.ghamdi@twinselevators.com',
-    nationalIdOrIqama: '1084920144',
+    id: 'emp-admin',
+    code: 'ADM-001',
+    name: 'Twins Admin',
+    nameEn: 'Twins Admin',
+    role: 'GENERAL_MGR',
+    phone: '+966 50 111 2233',
+    email: 'admin@twinselevators.com',
+    nationalIdOrIqama: '1010000001',
     nationality: 'سعودي',
     status: 'ACTIVE',
-    joinDate: '2024-03-01',
-    avatarBg: 'bg-emerald-600',
-    commissionRate: 2.5,
-    monthlyTargetSar: 250000,
-    monthlyTargetElevators: 4,
-    territory: 'شمال الرياض والدرعية',
+    joinDate: '2023-01-01',
+    avatarBg: 'bg-rose-700',
     portalUser: {
       hasAccount: true,
-      userId: 'user-sales-01',
-      username: 'ahmed.ghamdi',
-      email: 'ahmed.ghamdi@twinselevators.com',
-      password: 'password123',
-      portalRole: 'SALES_REP',
+      userId: 'user-mgt-01',
+      username: 'admin',
+      email: 'admin@twinselevators.com',
+      password: 'admin',
+      portalRole: 'MANAGEMENT',
       isActive: true,
-      userTitle: 'مسؤول مبيعات المشاريع الكبرى',
-      lastLogin: '2026-09-25 14:30',
+      userTitle: 'المدير العام - كامل الصلاحيات',
+      lastLogin: '2026-10-02 09:00',
     },
-    notes: 'مندوب مبيعات معتمد للمشاريع التجارية والأبراج، حاصل على جائزة أعلى مبيعات للربع الأول.',
-    createdAt: '2024-03-01',
-    updatedAt: '2026-09-01',
+    notes: 'المدير العام والمشرف التنفيذي لكافة فروع وعمليات مصاعد التوأم.',
+    createdAt: '2023-01-01',
+    updatedAt: '2026-10-02',
   },
   {
-    id: 'emp-102',
-    code: 'REP-102',
-    name: 'عبدالرحمن فهد الدوسري',
-    nameEn: 'Abdulrahman Al-Dossary',
-    role: 'SALES_REP',
-    phone: '+966 55 987 6543',
-    email: 'a.dossary@twinselevators.com',
-    nationalIdOrIqama: '1093829103',
-    nationality: 'سعودي',
-    status: 'ACTIVE',
-    joinDate: '2024-08-15',
-    avatarBg: 'bg-blue-600',
-    commissionRate: 3.0,
-    monthlyTargetSar: 180000,
-    monthlyTargetElevators: 3,
-    territory: 'شرق ووسط الرياض والمصانع',
-    notes: 'متخصص في عروض تحديث المصاعد القديمة (Modernization) وعقود الصيانة الوقائية والسنوية.',
-    createdAt: '2024-08-15',
-    updatedAt: '2026-09-01',
-  },
-  {
-    id: 'emp-103',
-    code: 'REP-103',
-    name: 'م. فيصل بن سعد القرني',
-    nameEn: 'Eng. Faisal Al-Qarni',
-    role: 'SALES_REP',
-    phone: '+966 54 332 1100',
-    email: 'faisal.qarni@twinselevators.com',
-    nationalIdOrIqama: '1072910394',
-    nationality: 'سعودي',
-    status: 'ACTIVE',
-    joinDate: '2025-01-10',
-    avatarBg: 'bg-indigo-600',
-    commissionRate: 3.5,
-    monthlyTargetSar: 220000,
-    monthlyTargetElevators: 3,
-    territory: 'القصيم والمنطقة الغربية (جدة ومكة)',
-    notes: 'مسؤول مبيعات المصاعد البانورامية الزجاجية والفلل الفاخرة ذات التصاميم الخاصة.',
-    createdAt: '2025-01-10',
-    updatedAt: '2026-09-01',
-  },
-  {
-    id: 'emp-201',
-    code: 'TECH-201',
-    name: 'فني / محمد إبراهيم الشناوي',
-    nameEn: 'Mohamed Ibrahim El-Shennawy',
+    id: 'emp-tech',
+    code: 'TECH-001',
+    name: 'Twins Technician',
+    nameEn: 'Twins Technician',
     role: 'MAINTENANCE_TECH',
     phone: '+966 56 123 7890',
-    email: 'm.shennawy@twinselevators.com',
-    nationalIdOrIqama: '2398401928',
+    email: 'technician@twinselevators.com',
+    nationalIdOrIqama: '2020000002',
     nationality: 'مصري',
     status: 'ACTIVE',
     joinDate: '2023-06-01',
-    avatarBg: 'bg-cyan-600',
-    technicianSpecialty: 'لوحات التحكم الكهرومغناطيسية، كروت VVVF، وأنظمة الأمان والفرامل',
-    assignedZone: 'شمال الرياض وحي الملقا وحطين',
+    avatarBg: 'bg-blue-600',
+    technicianSpecialty: 'صيانة دورية، طوارئ، كروت VVVF ولوحات التحكم',
+    assignedZone: 'الرياض والمناطق المجاورة',
     emergencyOnCall: true,
-    dailyVisitCapacity: 5,
+    dailyVisitCapacity: 6,
     portalUser: {
       hasAccount: true,
       userId: 'user-tech-01',
-      username: 'm.shennawy',
-      email: 'm.shennawy@twinselevators.com',
+      username: 'technician',
+      email: 'technician@twinselevators.com',
       password: 'password123',
       portalRole: 'TECHNICIAN',
       isActive: true,
-      userTitle: 'كبير فنيي الصيانة والطوارئ',
-      lastLogin: '2026-09-25 16:15',
+      userTitle: 'فني الصيانة والطوارئ الميداني',
+      lastLogin: '2026-10-02 08:30',
     },
-    notes: 'كبير فنيي الصيانة الدورية الميدانية، خبرة 12 عاماً في مصاعد فوجي وتوينز ومونتاناري الإيطالية.',
+    notes: 'فني الصيانة الميدانية المعتمد لزيارات الصيانة وبلاغات الأعطال.',
     createdAt: '2023-06-01',
-    updatedAt: '2026-09-01',
+    updatedAt: '2026-10-02',
   },
   {
-    id: 'emp-202',
-    code: 'TECH-202',
-    name: 'فني / راجيش كومار برابهاكار',
-    nameEn: 'Rajesh Kumar Prabhakar',
-    role: 'MAINTENANCE_TECH',
-    phone: '+966 59 765 4321',
-    email: 'rajesh.kumar@twinselevators.com',
-    nationalIdOrIqama: '2489201938',
-    nationality: 'هندي',
-    status: 'ACTIVE',
-    joinDate: '2023-11-20',
-    avatarBg: 'bg-teal-600',
-    technicianSpecialty: 'ميكانيكا، حبال الجر، أبواب السلاب، أجهزة الهيدروليك والمكابس',
-    assignedZone: 'شرق وجنوب الرياض، الروضة والنسيم',
-    emergencyOnCall: false,
-    dailyVisitCapacity: 6,
-    notes: 'فني متخصص في فحص وضبط وزنية أبواب السيلين وفواصل الأمان ومساند المحركات.',
-    createdAt: '2023-11-20',
-    updatedAt: '2026-09-01',
-  },
-  {
-    id: 'emp-203',
-    code: 'TECH-203',
-    name: 'فني / سالم مبارك العلي',
-    nameEn: 'Salem Mubarak Al-Ali',
-    role: 'MAINTENANCE_TECH',
-    phone: '+966 53 888 2211',
-    email: 'salem.ali@twinselevators.com',
-    nationalIdOrIqama: '1098492018',
+    id: 'emp-sales',
+    code: 'SALES-001',
+    name: 'Twins Sales',
+    nameEn: 'Twins Sales',
+    role: 'SALES_REP',
+    phone: '+966 50 412 8899',
+    email: 'sales@twinselevators.com',
+    nationalIdOrIqama: '1030000003',
     nationality: 'سعودي',
     status: 'ACTIVE',
-    joinDate: '2024-02-15',
-    avatarBg: 'bg-sky-600',
-    technicianSpecialty: 'صيانة وقائية، أجهزة الإنقاذ الأوتوماتيكي ARD، والستائر الضوئية',
-    assignedZone: 'وسط وغرب الرياض، العليا والسليمانية',
-    emergencyOnCall: true,
-    dailyVisitCapacity: 5,
-    notes: 'فني معتمد لدى الدفاع المدني، مسؤول عن فحص شهادات السلامة السنوية.',
-    createdAt: '2024-02-15',
-    updatedAt: '2026-09-01',
+    joinDate: '2024-01-15',
+    avatarBg: 'bg-emerald-600',
+    commissionRate: 3.0,
+    monthlyTargetSar: 250000,
+    monthlyTargetElevators: 4,
+    territory: 'الرياض والمناطق المجاورة',
+    portalUser: {
+      hasAccount: true,
+      userId: 'user-sales-01',
+      username: 'sales',
+      email: 'sales@twinselevators.com',
+      password: 'password123',
+      portalRole: 'SALES_REP',
+      isActive: true,
+      userTitle: 'مسؤول مبيعات المشاريع والعقود',
+      lastLogin: '2026-10-02 08:45',
+    },
+    notes: 'مسؤول مبيعات المشاريع وعقود التوريد والتركيب.',
+    createdAt: '2024-01-15',
+    updatedAt: '2026-10-02',
   },
   {
-    id: 'emp-301',
-    code: 'ENG-301',
-    name: 'م. خالد بن سلطان العتيبي',
-    nameEn: 'Eng. Khalid Al-Otaibi',
+    id: 'emp-install',
+    code: 'INST-001',
+    name: 'Twins Installation',
+    nameEn: 'Twins Installation',
     role: 'INSTALLATION_ENG',
     phone: '+966 50 777 4433',
-    email: 'khalid.otaibi@twinselevators.com',
-    nationalIdOrIqama: '1063920182',
+    email: 'installation@twinselevators.com',
+    nationalIdOrIqama: '1040000004',
     nationality: 'سعودي',
     status: 'ACTIVE',
-    joinDate: '2023-01-15',
+    joinDate: '2023-03-01',
     avatarBg: 'bg-purple-600',
-    notes: 'رئيس مهندسي التركيبات الميدانية، يشرف على مراحل تسليم البئر، الشاقول، واختبارات الأحمال الأولية.',
-    createdAt: '2023-01-15',
-    updatedAt: '2026-09-01',
+    portalUser: {
+      hasAccount: true,
+      userId: 'user-install-01',
+      username: 'installation',
+      email: 'installation@twinselevators.com',
+      password: 'password123',
+      portalRole: 'CUSTOM',
+      isActive: true,
+      userTitle: 'مشرف التركيبات والمشاريع الهندسية',
+      lastLogin: '2026-10-01 15:00',
+    },
+    notes: 'مشرف قطاع التركيبات والشواقول واعتمادات الدفاع المدني.',
+    createdAt: '2023-03-01',
+    updatedAt: '2026-10-02',
   },
   {
-    id: 'emp-401',
-    code: 'MGR-401',
-    name: 'م. طارق عبدالكريم المنصور',
-    nameEn: 'Eng. Tariq Al-Mansoor',
-    role: 'MAINTENANCE_MGR',
-    phone: '+966 50 111 9922',
-    email: 'tariq.mansoor@twinselevators.com',
-    nationalIdOrIqama: '1052910294',
-    nationality: 'سعودي',
-    status: 'ACTIVE',
-    joinDate: '2022-09-01',
-    avatarBg: 'bg-indigo-700',
-    notes: 'مدير عام إدارة الصيانة والتشغيل، مسؤول عن توزيع جداول الزيارات وتجديد العقود الكبرى.',
-    createdAt: '2022-09-01',
-    updatedAt: '2026-09-01',
-  },
-  {
-    id: 'emp-501',
-    code: 'ACC-501',
-    name: 'سارة عبدالله النجاشي',
-    nameEn: 'Sara Al-Najashi',
+    id: 'emp-finance',
+    code: 'FIN-001',
+    name: 'Twins Accountant',
+    nameEn: 'Twins Accountant',
     role: 'ACCOUNTANT',
     phone: '+966 11 450 0012',
-    email: 'sara.najashi@twinselevators.com',
-    nationalIdOrIqama: '1082910392',
-    nationality: 'سعودية',
+    email: 'finance@twinselevators.com',
+    nationalIdOrIqama: '1050000005',
+    nationality: 'سعودي',
     status: 'ACTIVE',
-    joinDate: '2024-05-01',
-    avatarBg: 'bg-slate-700',
-    notes: 'مسؤولة الحسابات والفوترة الضريبية وإصدار كشوف عمولات المناديب الشهرية.',
-    createdAt: '2024-05-01',
-    updatedAt: '2026-09-01',
+    joinDate: '2024-02-01',
+    avatarBg: 'bg-teal-600',
+    portalUser: {
+      hasAccount: true,
+      userId: 'user-fin-01',
+      username: 'finance',
+      email: 'finance@twinselevators.com',
+      password: 'password123',
+      portalRole: 'CUSTOM',
+      isActive: true,
+      userTitle: 'مسؤول الإدارة المالية والفوترة',
+      lastLogin: '2026-10-01 12:00',
+    },
+    notes: 'مسؤول قطاع المالية والحسابات وفواتير ZATCA وسندات القبض.',
+    createdAt: '2024-02-01',
+    updatedAt: '2026-10-02',
+  },
+  {
+    id: 'emp-warehouse',
+    code: 'WH-001',
+    name: 'Twins Warehouse',
+    nameEn: 'Twins Warehouse',
+    role: 'WAREHOUSE_KEEPER',
+    phone: '+966 50 888 9900',
+    email: 'warehouse@twinselevators.com',
+    nationalIdOrIqama: '2060000006',
+    nationality: 'هندي',
+    status: 'ACTIVE',
+    joinDate: '2023-10-01',
+    avatarBg: 'bg-amber-600',
+    portalUser: {
+      hasAccount: true,
+      userId: 'user-wh-01',
+      username: 'warehouse',
+      email: 'warehouse@twinselevators.com',
+      password: 'password123',
+      portalRole: 'CUSTOM',
+      isActive: true,
+      userTitle: 'أمين المستودع وسلاسل الإمداد',
+      lastLogin: '2026-10-01 11:30',
+    },
+    notes: 'مسؤول قطاع المستودع وقطع الغيار وأوامر الشراء والتوريد.',
+    createdAt: '2023-10-01',
+    updatedAt: '2026-10-02',
+  },
+  {
+    id: 'emp-care',
+    code: 'CARE-001',
+    name: 'Twins Customer Care',
+    nameEn: 'Twins Customer Care',
+    role: 'CUSTOMER_SERVICE',
+    phone: '+966 50 333 4455',
+    email: 'care@twinselevators.com',
+    nationalIdOrIqama: '1070000007',
+    nationality: 'سعودي',
+    status: 'ACTIVE',
+    joinDate: '2024-04-01',
+    avatarBg: 'bg-cyan-600',
+    portalUser: {
+      hasAccount: true,
+      userId: 'user-care-01',
+      username: 'care',
+      email: 'care@twinselevators.com',
+      password: 'password123',
+      portalRole: 'CUSTOM',
+      isActive: true,
+      userTitle: 'مسؤول خدمة العملاء ومراقبة الجودة',
+      lastLogin: '2026-10-01 10:00',
+    },
+    notes: 'مسؤول قطاع خدمة العملاء وبلاغات الطوارئ ورضا المشتركين.',
+    createdAt: '2024-04-01',
+    updatedAt: '2026-10-02',
   },
 ];
 
@@ -528,10 +790,10 @@ export function calculateHaversineDistanceMeters(
 export const SAMPLE_ATTENDANCE_RECORDS: SiteAttendanceRecord[] = [
   {
     id: 'att-2026-001',
-    employeeId: 'emp-201',
-    employeeName: 'فني/ حسن إبراهيم رضوان',
+    employeeId: 'emp-tech',
+    employeeName: 'Twins Technician',
     employeeRole: 'MAINTENANCE_TECH',
-    employeePhone: '+966 50 333 8811',
+    employeePhone: '+966 56 123 7890',
     checkInType: 'MAINTENANCE_VISIT',
     projectName: 'برج الأندلس للأعمال - العليا',
     clientName: 'شركة العليان العقارية',
@@ -552,10 +814,10 @@ export const SAMPLE_ATTENDANCE_RECORDS: SiteAttendanceRecord[] = [
   },
   {
     id: 'att-2026-002',
-    employeeId: 'emp-101',
-    employeeName: 'أ. فهد عبدالله الدوسري',
+    employeeId: 'emp-sales',
+    employeeName: 'Twins Sales',
     employeeRole: 'SALES_REP',
-    employeePhone: '+966 50 222 1199',
+    employeePhone: '+966 50 412 8899',
     checkInType: 'CLIENT_MEETING',
     projectName: 'فيلا حي النرجس الفاخرة',
     clientName: 'سعادة الشيخ منصور بن عبدالعزيز',
@@ -576,8 +838,8 @@ export const SAMPLE_ATTENDANCE_RECORDS: SiteAttendanceRecord[] = [
   },
   {
     id: 'att-2026-003',
-    employeeId: 'emp-301',
-    employeeName: 'م. خالد بن سلطان العتيبي',
+    employeeId: 'emp-install',
+    employeeName: 'Twins Installation',
     employeeRole: 'INSTALLATION_ENG',
     employeePhone: '+966 50 777 4433',
     checkInType: 'SITE_INSPECTION',
