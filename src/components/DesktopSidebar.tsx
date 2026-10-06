@@ -4,7 +4,6 @@ import { UserProfile, UserPortalRole } from '../types/portal';
 import { CompanySettings } from '../types/settings';
 import { AppLanguage } from '../utils/translations';
 import {
-  Wand2,
   Layers,
   Package,
   BarChart3,
@@ -28,6 +27,7 @@ import {
   KeyRound,
   MapPin,
   Boxes,
+  LayoutDashboard,
   LogOut
 } from 'lucide-react';
 
@@ -212,7 +212,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               <button
                 type="button"
                 onClick={onLogout}
-                title={isAr ? 'تسجيل الخروج والعودة لصفحة الدخول الرئيسية' : 'Sign Out & Return to Home Login'}
+                title={isAr ? 'تسجيل الخروج' : 'Sign Out'}
                 className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors text-xs flex items-center cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -227,6 +227,15 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {/* ================= MANAGEMENT ROLE ================= */}
         {currentRole === 'MANAGEMENT' && (
           <>
+            <SectionHeader titleAr="لوحة التحكم والمؤشرات" titleEn="Dashboard & Overview" />
+            <NavItem
+              tab="DASHBOARD"
+              icon={LayoutDashboard}
+              labelAr="لوحة التحكم الرئيسية"
+              labelEn="Executive Dashboard"
+              iconColor="text-blue-600"
+            />
+
             <SectionHeader titleAr="المبيعات والمشاريع" titleEn="Sales & Projects" />
             <NavItem
               tab="CUSTOMERS"
@@ -297,6 +306,13 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               labelEn="Breakdowns Management"
               iconColor="text-rose-500"
             />
+            <NavItem
+              tab="TECHNICIAN_PORTAL"
+              icon={Wrench}
+              labelAr="لوحة الفنيين وتطبيق الميدان"
+              labelEn="Technician Field Portal"
+              iconColor="text-blue-500"
+            />
 
             <SectionHeader titleAr="المالية والسلامة والتراخيص" titleEn="Finance & Safety" />
             <NavItem
@@ -315,13 +331,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             />
 
             <SectionHeader titleAr="التصميم والهندسة" titleEn="Engineering & Design" />
-            <NavItem
-              tab="WIZARD"
-              icon={Wand2}
-              labelAr="معالج المواصفات"
-              labelEn="Quotation Wizard"
-              iconColor="text-amber-500"
-            />
             <NavItem
               tab="DRAWINGS"
               icon={Layers}
@@ -376,6 +385,15 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {/* ================= SALES REP ROLE ================= */}
         {currentRole === 'SALES_REP' && (
           <>
+            <SectionHeader titleAr="لوحة التحكم والمبيعات" titleEn="Dashboard & Sales" />
+            <NavItem
+              tab="DASHBOARD"
+              icon={LayoutDashboard}
+              labelAr="لوحة التحكم الرئيسية"
+              labelEn="Sales Dashboard"
+              iconColor="text-blue-600"
+            />
+
             <SectionHeader titleAr="المبيعات والعملاء" titleEn="Sales & CRM" />
             <NavItem
               tab="CUSTOMERS"
@@ -416,13 +434,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
 
             <SectionHeader titleAr="التصميم والمواصفات" titleEn="Specs & CAD" />
             <NavItem
-              tab="WIZARD"
-              icon={Wand2}
-              labelAr="معالج المواصفات"
-              labelEn="Quotation Wizard"
-              iconColor="text-amber-500"
-            />
-            <NavItem
               tab="DRAWINGS"
               icon={Layers}
               labelAr="المخطط الهندسي CAD"
@@ -442,7 +453,14 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {/* ================= TECHNICIAN ROLE ================= */}
         {currentRole === 'TECHNICIAN' && (
           <>
-            <SectionHeader titleAr="العمليات الميدانية" titleEn="Field Operations" />
+            <SectionHeader titleAr="لوحة التحكم والميدان" titleEn="Dashboard & Field" />
+            <NavItem
+              tab="DASHBOARD"
+              icon={LayoutDashboard}
+              labelAr="لوحة التحكم الميدانية"
+              labelEn="Field Dashboard"
+              iconColor="text-blue-600"
+            />
             <NavItem
               tab="TECHNICIAN_PORTAL"
               icon={Wrench}
@@ -500,7 +518,14 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {/* ================= CUSTOMER ROLE ================= */}
         {currentRole === 'CUSTOMER' && (
           <>
-            <SectionHeader titleAr="بوابة العميل" titleEn="Customer Hub" />
+            <SectionHeader titleAr="لوحة التحكم والعميل" titleEn="Dashboard & Portal" />
+            <NavItem
+              tab="DASHBOARD"
+              icon={LayoutDashboard}
+              labelAr="لوحة التحكم الرئيسية"
+              labelEn="Customer Dashboard"
+              iconColor="text-blue-600"
+            />
             <NavItem
               tab="CUSTOMER_PORTAL"
               icon={ShieldCheck}
@@ -535,7 +560,14 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {/* ================= SUPPLIER ROLE ================= */}
         {currentRole === 'SUPPLIER' && (
           <>
-            <SectionHeader titleAr="بوابة المورد المعتمد" titleEn="Supplier Hub" />
+            <SectionHeader titleAr="لوحة التحكم والتوريد" titleEn="Dashboard & Supply" />
+            <NavItem
+              tab="DASHBOARD"
+              icon={LayoutDashboard}
+              labelAr="لوحة التحكم الرئيسية"
+              labelEn="Supplier Dashboard"
+              iconColor="text-blue-600"
+            />
             <NavItem
               tab="SUPPLIER_PORTAL"
               icon={Building2}
@@ -559,6 +591,13 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             <SectionHeader 
               titleAr={currentUserProfile.customRoleName || "الأقسام المصرح بها"} 
               titleEn={currentUserProfile.customRoleName || "Authorized Sections"} 
+            />
+            <NavItem
+              tab="DASHBOARD"
+              icon={LayoutDashboard}
+              labelAr="لوحة التحكم الرئيسية"
+              labelEn="Dashboard"
+              iconColor="text-blue-600"
             />
             <NavItem
               tab="INTERACTIVE_MAP"
@@ -642,13 +681,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               iconColor="text-amber-500"
               badge={inventoryCount}
               badgeColor="bg-blue-50 text-blue-700 border-blue-200"
-            />
-            <NavItem
-              tab="SUPPLIER_PORTAL"
-              icon={Building2}
-              labelAr="بوابة الموردين وأوامر الشراء"
-              labelEn="Supplier Portal & POs"
-              iconColor="text-cyan-600"
             />
             <NavItem
               tab="EMPLOYEES"

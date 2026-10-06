@@ -1,4 +1,5 @@
 export type NavTab = 
+  | 'DASHBOARD'                // لوحة التحكم الرئيسية الشاملة بحسب الصلاحيات
   | 'CUSTOMER_PORTAL'          // بوابة العميل المخصصة
   | 'TECHNICIAN_PORTAL'        // بوابة الفني الميداني المخصصة
   | 'SUPPLIER_PORTAL'          // بوابة المورد المعتمد (للتصميم لاحقاً)

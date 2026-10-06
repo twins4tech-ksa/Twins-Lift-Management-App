@@ -43,8 +43,10 @@ import {
   Database,
   Receipt,
   ShieldAlert,
+  LayoutDashboard,
   LogOut
 } from 'lucide-react';
+import { ExecutiveDashboardView } from './components/ExecutiveDashboardView';
 import { DatabaseStatusModal, DbStatusInfo } from './components/DatabaseStatusModal';
 import { InventoryItem, InventoryMovement, Vendor, PurchaseOrder, PurchaseOrderStatus } from './types/inventory';
 import { SAMPLE_INVENTORY, SAMPLE_INVENTORY_MOVEMENTS, SAMPLE_VENDORS, SAMPLE_PURCHASE_ORDERS } from './data/sampleInventory';
@@ -83,6 +85,7 @@ import { DesktopSidebar } from './components/DesktopSidebar';
 import { QuickCreateMenu } from './components/QuickCreateMenu';
 import { QuickAddCustomerModal } from './components/QuickAddCustomerModal';
 import { BreakdownModal } from './components/BreakdownModal';
+import { OfflineSyncBanner } from './components/OfflineSyncBanner';
 import { UserProfileMenu } from './components/UserProfileMenu';
 import { InAppNotificationsPopover } from './components/InAppNotificationsPopover';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
@@ -477,17 +480,7 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState<NavTab>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_ACTIVE_PORTAL);
-      if (stored && stored !== 'undefined' && stored !== 'null') {
-        const parsed = JSON.parse(stored);
-        if (parsed?.role === 'CUSTOMER') return 'CUSTOMER_PORTAL';
-        if (parsed?.role === 'TECHNICIAN') return 'TECHNICIAN_PORTAL';
-        if (parsed?.role === 'SUPPLIER') return 'SUPPLIER_PORTAL';
-        if (parsed?.role === 'SALES_REP') return 'SALES_QUOTATIONS';
-      }
-    } catch (e) {}
-    return 'CUSTOMERS';
+    return 'DASHBOARD';
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
@@ -661,41 +654,27 @@ export default function App() {
       console.warn('Could not save active portal profile', e);
     }
     
-    // Auto redirect to suitable view based on selected role
-    if (validProfile.role === 'CUSTOMER') {
-      setActiveTab('CUSTOMER_PORTAL');
-      showToast(language === 'ar' ? `مرحباً بك في بوابة العميل: ${validProfile.name}` : `Welcome to Customer Portal: ${validProfile.name}`);
-    } else if (validProfile.role === 'TECHNICIAN') {
-      setActiveTab('TECHNICIAN_PORTAL');
-      showToast(language === 'ar' ? `مرحباً بك في لوحة الفني الميداني: ${validProfile.name}` : `Welcome Technician: ${validProfile.name}`);
-    } else if (validProfile.role === 'SALES_REP') {
-      setActiveTab('SALES_QUOTATIONS');
-      showToast(language === 'ar' ? `مرحباً بك ممثل المبيعات: ${validProfile.name}` : `Welcome Sales Rep: ${validProfile.name}`);
-    } else if (validProfile.role === 'SUPPLIER') {
-      setActiveTab('SUPPLIER_PORTAL');
-      showToast(language === 'ar' ? `مرحباً بك في بوابة المورد المعتمد: ${validProfile.name}` : `Welcome Supplier: ${validProfile.name}`);
-    } else {
-      setActiveTab('CUSTOMERS');
-      showToast(language === 'ar' ? `تم تفعيل صلاحيات الإدارة العليا الكاملة: ${validProfile.name}` : `Admin & Management mode: ${validProfile.name}`);
-    }
+    // Auto redirect to suitable view: DASHBOARD is the default view for any user but tailored to his privilege!
+    setActiveTab('DASHBOARD');
+    showToast(language === 'ar' ? `مرحباً بك: ${validProfile.name}` : `Welcome: ${validProfile.name}`);
   };
 
   // Automatic portal redirection and permission enforcement based on user's authorized role
   useEffect(() => {
     if (currentRole === 'CUSTOMER') {
-      const allowedCustomerTabs: NavTab[] = ['CUSTOMER_PORTAL', 'MAINTENANCE_CONTRACTS', 'SALES_QUOTATIONS', 'DRAWINGS'];
+      const allowedCustomerTabs: NavTab[] = ['DASHBOARD', 'CUSTOMER_PORTAL', 'MAINTENANCE_CONTRACTS', 'SALES_QUOTATIONS', 'DRAWINGS'];
       if (!allowedCustomerTabs.includes(activeTab)) {
-        setActiveTab('CUSTOMER_PORTAL');
+        setActiveTab('DASHBOARD');
       }
     } else if (currentRole === 'TECHNICIAN') {
-      const allowedTechTabs: NavTab[] = ['TECHNICIAN_PORTAL', 'MAINTENANCE_CONTRACTS', 'MAINTENANCE_SCHEDULES', 'MAINTENANCE_BREAKDOWNS', 'DRAWINGS', 'INVENTORY'];
+      const allowedTechTabs: NavTab[] = ['DASHBOARD', 'TECHNICIAN_PORTAL', 'MAINTENANCE_CONTRACTS', 'MAINTENANCE_SCHEDULES', 'MAINTENANCE_BREAKDOWNS', 'DRAWINGS', 'INVENTORY'];
       if (!allowedTechTabs.includes(activeTab)) {
-        setActiveTab('TECHNICIAN_PORTAL');
+        setActiveTab('DASHBOARD');
       }
     } else if (currentRole === 'SUPPLIER') {
-      const allowedSupplierTabs: NavTab[] = ['SUPPLIER_PORTAL', 'INVENTORY'];
+      const allowedSupplierTabs: NavTab[] = ['DASHBOARD', 'SUPPLIER_PORTAL', 'INVENTORY'];
       if (!allowedSupplierTabs.includes(activeTab)) {
-        setActiveTab('SUPPLIER_PORTAL');
+        setActiveTab('DASHBOARD');
       }
     }
   }, [currentRole, activeTab]);
@@ -1042,15 +1021,7 @@ export default function App() {
   };
 
   const handleGoHome = () => {
-    if (currentRole === 'CUSTOMER') {
-      setActiveTab('CUSTOMER_PORTAL');
-    } else if (currentRole === 'TECHNICIAN') {
-      setActiveTab('TECHNICIAN_PORTAL');
-    } else if (currentRole === 'SALES_REP') {
-      setActiveTab('SALES_QUOTATIONS');
-    } else {
-      setActiveTab('CUSTOMERS');
-    }
+    setActiveTab('DASHBOARD');
     setIsMobileMenuOpen(false);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1762,6 +1733,18 @@ export default function App() {
                   <>
                     <button
                       type="button"
+                      onClick={() => { setActiveTab('DASHBOARD'); setIsMobileMenuOpen(false); }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                        activeTab === 'DASHBOARD'
+                          ? 'bg-blue-600 text-white shadow-xs font-bold'
+                          : 'text-slate-700 hover:text-blue-700 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <LayoutDashboard className="w-5 h-5 text-blue-600" />
+                      {language === 'ar' ? 'لوحة التحكم الرئيسية' : 'Dashboard'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => { setActiveTab('CUSTOMER_PORTAL'); setIsMobileMenuOpen(false); }}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
                         activeTab === 'CUSTOMER_PORTAL'
@@ -1814,6 +1797,18 @@ export default function App() {
                 {/* 2. TECHNICIAN ROLE MOBILE */}
                 {currentRole === 'TECHNICIAN' && (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => { setActiveTab('DASHBOARD'); setIsMobileMenuOpen(false); }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                        activeTab === 'DASHBOARD'
+                          ? 'bg-blue-600 text-white shadow-xs font-bold'
+                          : 'text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <LayoutDashboard className="w-5 h-5 text-blue-600" />
+                      {language === 'ar' ? 'لوحة التحكم الميدانية' : 'Field Dashboard'}
+                    </button>
                     <button
                       type="button"
                       onClick={() => { setActiveTab('TECHNICIAN_PORTAL'); setIsMobileMenuOpen(false); }}
@@ -1892,6 +1887,18 @@ export default function App() {
                 {/* 3. SALES REP / MANAGEMENT MOBILE */}
                 {(currentRole === 'SALES_REP' || currentRole === 'MANAGEMENT') && (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => { setActiveTab('DASHBOARD'); setIsMobileMenuOpen(false); }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                        activeTab === 'DASHBOARD'
+                          ? 'bg-blue-600 text-white shadow-xs font-bold'
+                          : 'text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <LayoutDashboard className="w-5 h-5 text-blue-600" />
+                      {language === 'ar' ? 'لوحة التحكم الرئيسية' : 'Dashboard'}
+                    </button>
                     <button
                       type="button"
                       onClick={() => { setActiveTab('CUSTOMERS'); setIsMobileMenuOpen(false); }}
@@ -2029,18 +2036,6 @@ export default function App() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setActiveTab('SUPPLIER_PORTAL'); setIsMobileMenuOpen(false); }}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                            activeTab === 'SUPPLIER_PORTAL'
-                              ? 'bg-indigo-600 text-white shadow-xs font-semibold'
-                              : 'text-slate-700 hover:text-indigo-600 hover:bg-slate-100 font-medium'
-                          }`}
-                        >
-                          <Building2 className="w-5 h-5 text-indigo-600" />
-                          {language === 'ar' ? 'بوابة المورد المعتمد' : 'Supplier Portal'}
-                        </button>
-                        <button
-                          type="button"
                           id="mobile-nav-employees"
                           onClick={() => { setActiveTab('EMPLOYEES'); setIsMobileMenuOpen(false); }}
                           className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
@@ -2092,62 +2087,6 @@ export default function App() {
                       </>
                     )}
                   </>
-                )}
-                
-                {['WIZARD', 'DRAWINGS', 'COMPONENTS', 'PRINT'].includes(activeTab) && (
-                  <div className="mt-4 pt-4 border-t border-slate-200 flex flex-col gap-1">
-                    <div className="px-4 text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">
-                      {language === 'ar' ? 'محرر المشروع' : 'Project Editor'}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setActiveTab('WIZARD'); setIsMobileMenuOpen(false); }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                        activeTab === 'WIZARD'
-                          ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                          : 'text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-medium'
-                      }`}
-                    >
-                      <Wand2 className="w-5 h-5 text-blue-600" />
-                      {language === 'ar' ? 'معالج المواصفات' : 'Quotation Wizard'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setActiveTab('DRAWINGS'); setIsMobileMenuOpen(false); }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                        activeTab === 'DRAWINGS'
-                          ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                          : 'text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-medium'
-                      }`}
-                    >
-                      <Layers className="w-5 h-5 text-purple-600" />
-                      {language === 'ar' ? 'المخطط الهندسي CAD' : 'CAD Drawings'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setActiveTab('COMPONENTS'); setIsMobileMenuOpen(false); }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                        activeTab === 'COMPONENTS'
-                          ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                          : 'text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-medium'
-                      }`}
-                    >
-                      <Package className="w-5 h-5 text-emerald-600" />
-                      {language === 'ar' ? 'قائمة المكونات والتكاليف' : 'Components BOM'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setActiveTab('PRINT'); setIsMobileMenuOpen(false); }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                        activeTab === 'PRINT'
-                          ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                          : 'text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-medium'
-                      }`}
-                    >
-                      <Printer className="w-5 h-5 text-indigo-600" />
-                      {language === 'ar' ? 'الطباعة والعقد' : 'Print & Contract'}
-                    </button>
-                  </div>
                 )}
               </nav>
             </div>
@@ -2206,7 +2145,7 @@ export default function App() {
                   className="w-full mt-3 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-colors cursor-pointer border border-rose-200"
                 >
                   <LogOut className="w-4 h-4 text-rose-600" />
-                  <span>{language === 'ar' ? 'تسجيل الخروج والعودة للرئيسية' : 'Sign Out & Return Home'}</span>
+                  <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}</span>
                 </button>
               </div>
             </div>
@@ -2225,8 +2164,126 @@ export default function App() {
         </div>
       )}
 
+      {/* Offline Sync Banner across app */}
+      <OfflineSyncBanner isAr={language === 'ar'} />
+
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-2.5 sm:p-4 lg:p-5">
+
+        {/* Universal Primary Tab: DASHBOARD (Rendered according to user role & privilege) */}
+        {activeTab === 'DASHBOARD' && (
+          <>
+            {currentRole === 'TECHNICIAN' ? (
+              <TechnicianPortalView
+                currentUser={currentUserProfile}
+                contracts={maintenanceContracts}
+                breakdowns={breakdowns}
+                spec={currentSpec}
+                companySettings={companySettings}
+                onSaveContract={handleSaveMaintenanceContract}
+                onSaveBreakdown={handleUpdateBreakdown}
+                onUpdateBreakdownStatus={(breakdownId, newStatus) => {
+                  const b = breakdowns.find((x) => x.id === breakdownId);
+                  if (b) {
+                    handleUpdateBreakdown({
+                      ...b,
+                      status: newStatus,
+                      isResolved: newStatus === 'Resolved',
+                      resolvedAt: newStatus === 'Resolved' ? new Date().toISOString() : undefined,
+                    });
+                    showToast(language === 'ar' ? `تم تحديث حالة البلاغ إلى: ${newStatus}` : `Status updated to ${newStatus}`);
+                  }
+                }}
+                onOpenGpsCheckIn={() => {
+                  const emp = employees.find((e) => e.id === currentUserProfile.employeeId) || employees[0];
+                  if (emp) handleOpenAttendanceModal(emp.id);
+                }}
+                onOpenDrawings={() => setActiveTab('DRAWINGS')}
+                isAr={language === 'ar'}
+              />
+            ) : currentRole === 'CUSTOMER' ? (
+              <CustomerPortalView
+                currentUser={currentUserProfile}
+                contracts={maintenanceContracts}
+                breakdowns={breakdowns}
+                spec={currentSpec}
+                companySettings={companySettings}
+                onReportBreakdown={(newBreakdown) => {
+                  const fullBreakdown: MaintenanceBreakdown = {
+                    ...newBreakdown,
+                    id: `brk-${Date.now()}`,
+                    reportedAt: new Date().toISOString(),
+                    isResolved: false,
+                  };
+                  handleAddBreakdown(fullBreakdown);
+                  showToast(language === 'ar' ? 'تم تسجيل بلاغ العطل بنجاح وإشعار فريق الطوارئ الميداني' : 'Breakdown reported successfully');
+                }}
+                onOpenDrawings={() => setActiveTab('DRAWINGS')}
+                isAr={language === 'ar'}
+              />
+            ) : currentRole === 'SUPPLIER' ? (
+              <SupplierPortalView
+                language={language}
+                companySettings={companySettings}
+                currentUser={currentUserProfile}
+                purchaseOrders={purchaseOrders}
+                inventory={inventory}
+                vendors={vendors}
+                onUpdatePOStatus={handleUpdatePOStatus}
+                onAddPurchaseOrder={handleAddPurchaseOrder}
+                onAdjustStock={handleAdjustStock}
+                onGoHome={handleGoHome}
+                onNavigateTab={(tab) => setActiveTab(tab as any)}
+                onShowToast={showToast}
+              />
+            ) : currentRole === 'SALES_REP' ? (
+              <HistoricalDashboard
+                projects={projects}
+                customers={customers}
+                maintenanceContracts={maintenanceContracts}
+                breakdowns={breakdowns}
+                currentRole={currentRole}
+                currentUser={currentUserProfile}
+                language={language}
+                activeSection="PROJECTS"
+                forcedProjectsTab="ANALYTICS"
+                onSwitchSection={(sec) => setActiveTab(sec === 'PROJECTS' ? 'SALES_QUOTATIONS' : 'CUSTOMERS')}
+                onSelectProject={handleSelectProjectFromDashboard}
+                onNewQuotation={handleNewQuotation}
+                onDeleteProject={handleDeleteProject}
+                onUpdateProjectStatus={handleUpdateProjectStatus}
+                onUpdateProjectPrice={handleUpdateProjectPrice}
+                onUpdateProjectInline={handleUpdateProjectInline}
+                onNavigateToDrawings={handleNavigateToDrawingsFromProject}
+                onNavigateToPrint={handleNavigateToPrintFromProject}
+                onAddCustomer={handleAddCustomer}
+                onDeleteCustomer={handleDeleteCustomer}
+                onUpdateCustomer={handleUpdateCustomer}
+                onAddProjectForCustomer={handleAddProjectForCustomer}
+                onSyncAllToGoogleSheets={handleSyncAllToGoogleSheets}
+                onCreateNewGoogleSheet={() => setIsSheetsModalOpen(true)}
+                isSheetsConnected={Boolean(sheetsConfig.spreadsheetId)}
+                sheetsUrl={sheetsConfig.sheetUrl}
+              />
+            ) : (
+              <ExecutiveDashboardView
+                projects={projects}
+                customers={customers}
+                maintenanceContracts={maintenanceContracts}
+                breakdowns={breakdowns}
+                inventory={inventory}
+                employees={employees}
+                currentUser={currentUserProfile}
+                language={language}
+                onNavigate={(tab) => setActiveTab(tab)}
+                onSelectProject={handleSelectProjectFromDashboard}
+                onNewQuotation={handleNewQuotation}
+                onNewContract={() => setActiveTab('MAINTENANCE_CONTRACTS')}
+                onNewBreakdown={() => setIsQuickBreakdownModalOpen(true)}
+              />
+            )}
+          </>
+        )}
 
         {/* Tab 1: Quotation Wizard */}
         {activeTab === 'WIZARD' && (
@@ -2561,6 +2618,7 @@ export default function App() {
             spec={currentSpec}
             companySettings={companySettings}
             onSaveContract={handleSaveMaintenanceContract}
+            onSaveBreakdown={handleUpdateBreakdown}
             onUpdateBreakdownStatus={(breakdownId, newStatus) => {
               const b = breakdowns.find((x) => x.id === breakdownId);
               if (b) {

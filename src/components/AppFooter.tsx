@@ -98,28 +98,28 @@ export const AppFooter: React.FC<AppFooterProps> = ({
               <span>info@twins4tech.com</span>
             </a>
 
-            {/* Saudi Arabia Phone */}
+            {/* Saudi Arabia Hotline */}
             <a
               href="tel:+966548764412"
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/50 text-slate-200 hover:text-emerald-300 transition-all font-mono text-[11px] font-semibold shadow-2xs group"
-              title={isAr ? 'الاتصال بالسعودية: 0548764412' : 'Call Saudi Arabia: 0548764412'}
+              title={isAr ? 'Saudi Hotline: +966 54 876 4412' : 'Saudi Hotline: +966 54 876 4412'}
               dir="ltr"
             >
               <Phone className="w-3 h-3 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
               <span className="text-slate-400 font-sans text-[10px] mr-0.5">🇸🇦</span>
-              <span>0548764412</span>
+              <span>+966 54 876 4412</span>
             </a>
 
-            {/* Egypt Phone */}
+            {/* Egypt Hotline */}
             <a
               href="tel:+201063131831"
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/50 text-slate-200 hover:text-emerald-300 transition-all font-mono text-[11px] font-semibold shadow-2xs group"
-              title={isAr ? 'الاتصال بمصر: 01063131831' : 'Call Egypt: 01063131831'}
+              title={isAr ? 'Egypt Hotline: +20 10 63131 831' : 'Egypt Hotline: +20 10 63131 831'}
               dir="ltr"
             >
               <Phone className="w-3 h-3 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
               <span className="text-slate-400 font-sans text-[10px] mr-0.5">🇪🇬</span>
-              <span>01063131831</span>
+              <span>+20 10 63131 831</span>
             </a>
 
             {/* Compact Action Buttons */}

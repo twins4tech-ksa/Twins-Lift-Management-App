@@ -63,6 +63,33 @@ export interface ProjectMilestoneData {
   completedBy?: string;
 }
 
+export interface ProjectEmployeeLaborLog {
+  id: string;
+  projectId?: string;
+  projectName?: string;
+  employeeId: string;
+  employeeName: string;
+  employeeRole?: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm e.g. "08:00"
+  endTime: string; // HH:mm e.g. "17:00"
+  breakMinutes?: number; // e.g. 60
+  hoursWorked: number; // e.g. 8.0
+  regularHours?: number; // e.g. 8.0
+  overtimeHours?: number; // e.g. 2.0
+  hourlyRate: number; // SAR/hr
+  overtimeMultiplier?: number; // default 1.5
+  monthlySalarySar?: number; // Optional monthly salary reference
+  totalCost: number; // hoursWorked * hourlyRate + overtime
+  milestone?: ProjectMilestoneKey | 'General';
+  taskCategory?: string; // e.g. "Mechanical Rails", "Electrical Controller", etc.
+  workDescription: string;
+  supervisorName?: string;
+  status?: 'Draft' | 'Submitted' | 'Approved';
+  loggedAt?: string;
+  loggedBy?: string;
+}
+
 export type CustomerType = 
   | 'Corporate' 
   | 'Individual' 
@@ -194,6 +221,10 @@ export interface ElevatorSpecification {
   // Project Timeline Milestones Tracking ('Engineering', 'Manufacturing', 'Shipping', 'Installation')
   currentMilestone?: ProjectMilestoneKey;
   projectMilestones?: Partial<Record<ProjectMilestoneKey, ProjectMilestoneData>>;
+
+  // Project Labor & Field Crew Cost Center
+  laborLogs?: ProjectEmployeeLaborLog[];
+  totalLaborCost?: number;
 
   // Site Delivery Tracking
   deliveredComponentIds?: string[];

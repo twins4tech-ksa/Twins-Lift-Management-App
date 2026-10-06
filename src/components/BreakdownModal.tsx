@@ -43,19 +43,55 @@ export const BreakdownModal: React.FC<BreakdownModalProps> = ({
   const [clientSignatureUrl, setClientSignatureUrl] = useState<string | null>((breakdown as any)?.clientSignatureDataUrl || null);
   const [isSignaturePadOpen, setIsSignaturePadOpen] = useState(false);
 
-  const handleFileUpload = (type: 'BEFORE' | 'AFTER', e: React.ChangeEvent<HTMLInputElement>) => {
+  const processAndCompressFile = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height && width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          } else if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileUpload = async (type: 'BEFORE' | 'AFTER', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
+    try {
+      const compressed = await processAndCompressFile(file);
       if (type === 'BEFORE') {
-        setBeforePhotos((prev) => [...prev, dataUrl]);
+        setBeforePhotos((prev) => [...prev, compressed]);
       } else {
-        setAfterPhotos((prev) => [...prev, dataUrl]);
+        setAfterPhotos((prev) => [...prev, compressed]);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      // fallback
+    }
     e.target.value = '';
   };
 
@@ -382,15 +418,29 @@ export const BreakdownModal: React.FC<BreakdownModalProps> = ({
                     <span className="text-[11px] font-bold text-amber-800">
                       {isAr ? '📷 صور العطل / القطعة التالفة (قبل)' : 'Before Repair'}
                     </span>
-                    <label className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-white px-2 py-1 rounded-lg border border-amber-300 hover:bg-amber-50 cursor-pointer shadow-2xs">
-                      <span>{isAr ? '+ إضافة صورة' : '+ Add Photo'}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileUpload('BEFORE', e)}
-                      />
-                    </label>
+                    <div className="flex items-center gap-1">
+                      <label className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-1 rounded-lg border border-amber-300 cursor-pointer shadow-2xs">
+                        <Camera className="w-3 h-3 text-amber-700" />
+                        <span>{isAr ? 'الكاميرا' : 'Camera'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => handleFileUpload('BEFORE', e)}
+                        />
+                      </label>
+                      <label className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-300 cursor-pointer shadow-2xs">
+                        <ImageIcon className="w-3 h-3 text-slate-600" />
+                        <span>{isAr ? 'المعرض' : 'Gallery'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleFileUpload('BEFORE', e)}
+                        />
+                      </label>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 overflow-x-auto py-1">
@@ -421,15 +471,29 @@ export const BreakdownModal: React.FC<BreakdownModalProps> = ({
                     <span className="text-[11px] font-bold text-emerald-800">
                       {isAr ? '📷 صور الإصلاح والتركيب (بعد)' : 'After Repair'}
                     </span>
-                    <label className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-white px-2 py-1 rounded-lg border border-emerald-300 hover:bg-emerald-50 cursor-pointer shadow-2xs">
-                      <span>{isAr ? '+ إضافة صورة' : '+ Add Photo'}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileUpload('AFTER', e)}
-                      />
-                    </label>
+                    <div className="flex items-center gap-1">
+                      <label className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-2 py-1 rounded-lg border border-emerald-300 cursor-pointer shadow-2xs">
+                        <Camera className="w-3 h-3 text-emerald-700" />
+                        <span>{isAr ? 'الكاميرا' : 'Camera'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => handleFileUpload('AFTER', e)}
+                        />
+                      </label>
+                      <label className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-300 cursor-pointer shadow-2xs">
+                        <ImageIcon className="w-3 h-3 text-slate-600" />
+                        <span>{isAr ? 'المعرض' : 'Gallery'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleFileUpload('AFTER', e)}
+                        />
+                      </label>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 overflow-x-auto py-1">

@@ -86,6 +86,45 @@ export interface MaintenanceBreakdown {
   cost?: number;             // Optional cost if not covered by warranty/contract
   isResolved: boolean;
   recordedBy?: string;
+  beforePhotos?: string[];
+  afterPhotos?: string[];
+  clientSignatureDataUrl?: string;
+  partsVouchers?: DamagedPartsVoucher[];
+}
+
+export interface DamagedPartItem {
+  id: string;
+  partName: string;
+  partCode?: string;
+  quantity: number;
+  damageReason: string;
+  urgency: 'EMERGENCY' | 'HIGH' | 'MEDIUM' | 'NORMAL';
+  unitCostEstimate?: number;
+  photoUrl?: string;
+  photoTimestamp?: string;
+}
+
+export interface DamagedPartsVoucher {
+  id: string;
+  voucherNumber: string;
+  breakdownId?: string;
+  visitId?: string;
+  contractId?: string;
+  elevatorId?: string;
+  elevatorName: string;
+  buildingName: string;
+  customerName: string;
+  customerPhone?: string;
+  technicianId: string;
+  technicianName: string;
+  requestDate: string;
+  status: 'ISSUED' | 'DISPATCHED_TO_WAREHOUSE' | 'APPROVED' | 'FULFILLED';
+  items: DamagedPartItem[];
+  technicianSignature?: string;
+  customerSignature?: string;
+  customerRepName?: string;
+  generalNotes?: string;
+  createdAt: string;
 }
 
 export interface MaintenanceContract {

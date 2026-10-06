@@ -15,16 +15,12 @@ import {
   User,
   Eye,
   EyeOff,
-  Key,
   Sparkles,
   Check,
   AlertCircle,
   ArrowRight,
   ArrowLeft,
   Building2,
-  Wrench,
-  Briefcase,
-  Boxes,
   CheckCircle2,
   Send,
   HelpCircle,
@@ -34,9 +30,7 @@ import {
   Phone,
   Globe,
   RefreshCw,
-  LogOut,
-  ChevronRight,
-  ChevronLeft
+  LogOut
 } from 'lucide-react';
 import { TwinsLogo } from './TwinsLogo';
 
@@ -49,7 +43,7 @@ interface ModernLoginPageProps {
   onToggleLanguage: () => void;
 }
 
-// Master passwords accepted universally
+// Master passwords accepted internally for administrative fallback
 const SYSTEM_MASTER_PASSWORDS = [
   'MASTER2026',
   'MASTER',
@@ -59,7 +53,7 @@ const SYSTEM_MASTER_PASSWORDS = [
   '000000',
 ];
 
-type LoginTab = 'CREDENTIALS' | 'DEMO_ROLES' | 'MASTER_KEY' | 'FORGOT_PASSWORD';
+type LoginTab = 'CREDENTIALS' | 'FORGOT_PASSWORD';
 
 export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
   onLogin,
@@ -80,14 +74,6 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
   const [rememberMe, setRememberMe] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Master key tab states
-  const [masterKeyInput, setMasterKeyInput] = useState('');
-  const [masterTargetRole, setMasterTargetRole] = useState<UserPortalRole>('MANAGEMENT');
-
-  // Authenticated transition state (Success badge before entering)
-  const [authenticatedUser, setAuthenticatedUser] = useState<UserProfile | null>(null);
-  const [loginMethod, setLoginMethod] = useState<'PERSONAL' | 'MASTER'>('PERSONAL');
 
   // Forgot Password / Recovery States
   const [recoveryEmail, setRecoveryEmail] = useState('');
@@ -262,8 +248,8 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
       if (!matched) {
         setAuthError(
           isAr
-            ? 'لم يتم العثور على حساب بهذا المعرّف. يمكنك اختيار أحد الحسابات التجريبية أو الدخول برمز الماستر.'
-            : 'Account not found. You may use a quick demo account or Master Key.'
+            ? 'لم يتم العثور على حساب بهذا المعرّف. يرجى التحقق من اسم المستخدم أو البريد الإلكتروني أو رقم الهاتف.'
+            : 'Account not found. Please check your username, email, or mobile number.'
         );
         return;
       }
@@ -282,74 +268,19 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
       if (!isPersonalValid && !isMasterValid) {
         setAuthError(
           isAr
-            ? 'الرقم السري غير صحيح. يمكنك الدخول برقمك السري أو بـ Master Password (MASTER2026).'
-            : 'Incorrect password. You can enter with personal password or Master Password (MASTER2026).'
+            ? 'كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى أو النقر على "نسيت كلمة المرور؟".'
+            : 'Incorrect password. Please try again or click "Forgot Password?".'
         );
         return;
       }
-
-      const method = isMasterValid && !isPersonalValid ? 'MASTER' : 'PERSONAL';
-      setLoginMethod(method);
 
       const targetProfile: UserProfile = {
         ...matched.profile,
         lastLogin: new Date().toISOString().replace('T', ' ').slice(0, 16),
       };
 
-      setAuthenticatedUser(targetProfile);
-    }, 350);
-  };
-
-  // Direct login with Demo Profile
-  const handleSelectDemoProfile = (profile: UserProfile) => {
-    setIsLoading(true);
-    setAuthError(null);
-    setTimeout(() => {
-      setIsLoading(false);
-      setLoginMethod('PERSONAL');
-      setAuthenticatedUser(profile);
-    }, 250);
-  };
-
-  // Handle Master Key login tab
-  const handleMasterKeySubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-
-    const key = masterKeyInput.trim();
-    if (!key) {
-      setAuthError(isAr ? 'يرجى إدخال رمز الماستر' : 'Please enter master key');
-      return;
-    }
-
-    const isValid =
-      SYSTEM_MASTER_PASSWORDS.includes(key.toUpperCase()) ||
-      key.toLowerCase() === 'master' ||
-      key.toLowerCase() === 'master2026';
-
-    if (!isValid) {
-      setAuthError(isAr ? 'رمز الماستر غير معتمد. الرمز التجريبي الافتراضي هو: MASTER2026' : 'Invalid Master Key. Default demo key is: MASTER2026');
-      return;
-    }
-
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setLoginMethod('MASTER');
-
-      // Pick corresponding profile
-      let targetProfile = SAMPLE_USER_PROFILES.find((p) => p.role === masterTargetRole) || SAMPLE_USER_PROFILES[0];
-      setAuthenticatedUser({
-        ...targetProfile,
-        lastLogin: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      });
-    }, 300);
-  };
-
-  // Enter the authorized portal
-  const handleProceedToWorkspace = () => {
-    if (!authenticatedUser) return;
-    onLogin(authenticatedUser);
+      onLogin(targetProfile);
+    }, 200);
   };
 
   // Forgot password step 1
@@ -435,55 +366,6 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
     setAuthError(null);
     setRecoverySuccessMsg(null);
   };
-
-  // Demo accounts data
-  const demoAccounts = [
-    {
-      profile: SAMPLE_USER_PROFILES[0],
-      roleTitleAr: 'المدير العام (Twins Admin)',
-      roleTitleEn: 'General Manager (Twins Admin)',
-      badge: 'bg-rose-50 text-rose-700 border-rose-200',
-      icon: ShieldCheck,
-      descAr: 'إدارة العمليات، العقود، المحاسبة، والموظفين',
-      descEn: 'Operations, contracts, billing, and team management',
-    },
-    {
-      profile: SAMPLE_USER_PROFILES[1],
-      roleTitleAr: 'فني الصيانة (Twins Technician)',
-      roleTitleEn: 'Field Technician (Twins Technician)',
-      badge: 'bg-blue-50 text-blue-700 border-blue-200',
-      icon: Wrench,
-      descAr: 'بلاغات الأعطال، الفحص الميداني، وزيارات الصيانة',
-      descEn: 'Breakdowns, maintenance visits, and checklists',
-    },
-    {
-      profile: SAMPLE_USER_PROFILES[2],
-      roleTitleAr: 'مسؤول المبيعات (Twins Sales)',
-      roleTitleEn: 'Project Sales (Twins Sales)',
-      badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      icon: Briefcase,
-      descAr: 'عروض الأسعار، عقود التوريد، ومتابعة العملاء',
-      descEn: 'Quotations, sales contracts, and customer pipelines',
-    },
-    {
-      profile: SAMPLE_USER_PROFILES[3],
-      roleTitleAr: 'العميل المعتمد (Twins Customer)',
-      roleTitleEn: 'Authorized Client (Twins Customer)',
-      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      icon: Building2,
-      descAr: 'متابعة المصاعد، العقود، طلب صيانة فوري، وفواتير ZATCA',
-      descEn: 'Elevator status, contracts, service requests, and invoices',
-    },
-    {
-      profile: SAMPLE_USER_PROFILES[4],
-      roleTitleAr: 'المورد المعتمد (Twins Supplier)',
-      roleTitleEn: 'Authorized Vendor (Twins Supplier)',
-      badge: 'bg-amber-50 text-amber-700 border-amber-200',
-      icon: Boxes,
-      descAr: 'أوامر الشراء، مواصفات المحركات، وإشعارات التسليم',
-      descEn: 'Purchase orders, motor parts, and shipment notices',
-    },
-  ];
 
   return (
     <div
@@ -575,84 +457,9 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
               </div>
             )}
 
-            {/* If Authenticated: Show Approval & Auto-Forward Card */}
-            {authenticatedUser ? (
-              <div className="p-8 sm:p-10 text-center animate-in fade-in duration-300">
-                <div className="w-20 h-20 mx-auto rounded-3xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-md shadow-emerald-500/10 mb-5">
-                  <CheckCircle2 className="w-10 h-10 animate-bounce" />
-                </div>
-
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/70 text-emerald-800 text-xs font-bold mb-2">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {isAr ? 'تم التحقق وتأكيد الصلاحية بنجاح' : 'Identity & Access Verified'}
-                </div>
-
-                <h2 className="text-2xl font-black text-slate-900 mb-1">
-                  {isAr ? `مرحباً بك، ${authenticatedUser.name}` : `Welcome, ${authenticatedUser.nameEn || authenticatedUser.name}`}
-                </h2>
-                <p className="text-sm text-slate-500 mb-6">
-                  {isAr
-                    ? 'سيتم توجيهك تلقائياً إلى بوابتك ولوحة التحكم المصرح لك بها وفقاً لصلاحياتك'
-                    : 'You will be automatically redirected to your authorized portal & dashboard'}
-                </p>
-
-                {/* Role Details Card */}
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-start mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs text-slate-500 font-medium">
-                      {isAr ? 'البوابة المصرح بها:' : 'Authorized Portal:'}
-                    </span>
-                    <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800">
-                      {ROLE_PRIVILEGES_MAP[authenticatedUser.role]?.titleAr || authenticatedUser.role}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 text-xs text-slate-600">
-                    <div className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>{authenticatedUser.title || (isAr ? 'موظف معتمد' : 'Authorized Personnel')}</span>
-                    </div>
-                    {authenticatedUser.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="font-mono text-slate-700">{authenticatedUser.email}</span>
-                      </div>
-                    )}
-                    {loginMethod === 'MASTER' && (
-                      <div className="flex items-center gap-2 text-purple-700 font-bold">
-                        <Key className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                        <span>{isAr ? 'تم الدخول بصلاحية رمز الماستر الإداري' : 'Accessed via Administrative Master Key'}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    onClick={handleProceedToWorkspace}
-                    className="flex-1 py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <span>{isAr ? 'الدخول الآن للبوابة' : 'Enter Portal Now'}</span>
-                    {isAr ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthenticatedUser(null);
-                      setUserIdentifier('');
-                      setPassword('');
-                    }}
-                    className="py-3.5 px-5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-bold transition-all cursor-pointer"
-                  >
-                    {isAr ? 'حساب آخر' : 'Use Another Account'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 sm:p-8">
-                {/* Header Icon & Title */}
+            {/* Login Card Body */}
+            <div className="p-6 sm:p-8">
+              {/* Header Icon & Title */}
                 <div className="text-center mb-6">
                   <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-sm mb-3">
                     <ShieldCheck className="w-8 h-8" />
@@ -667,54 +474,6 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
                   </p>
                 </div>
 
-                {/* Tab Switcher: White & Light Gray Segments */}
-                <div className="flex items-center p-1 bg-slate-100 rounded-2xl mb-6">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('CREDENTIALS');
-                      setAuthError(null);
-                    }}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      activeTab === 'CREDENTIALS'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {isAr ? 'تسجيل الدخول' : 'Sign In'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('DEMO_ROLES');
-                      setAuthError(null);
-                    }}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      activeTab === 'DEMO_ROLES'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {isAr ? 'حسابات تجريبية سريعة' : 'Quick Demo Access'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('MASTER_KEY');
-                      setAuthError(null);
-                    }}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      activeTab === 'MASTER_KEY'
-                        ? 'bg-white text-purple-700 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {isAr ? 'رمز الماستر' : 'Master Key'}
-                  </button>
-                </div>
-
                 {/* Error Banner */}
                 {authError && (
                   <div className="mb-5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2.5 animate-in fade-in">
@@ -723,7 +482,7 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
                   </div>
                 )}
 
-                {/* TAB 1: STANDARD CREDENTIALS FORM */}
+                {/* STANDARD CREDENTIALS FORM */}
                 {activeTab === 'CREDENTIALS' && (
                   <form onSubmit={handleLoginSubmit} className="space-y-4">
                     {/* User Identifier */}
@@ -817,148 +576,10 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
                         </>
                       )}
                     </button>
-
-                    {/* Tip under form */}
-                    <p className="text-center text-[11px] text-slate-400 font-medium pt-2">
-                      {isAr
-                        ? 'ملاحظة: يمكنك الدخول باسم المستخدم أو بـ Master Password الخاص بالإدارة'
-                        : 'Note: You can log in using your account credentials or Master Password'}
-                    </p>
                   </form>
                 )}
 
-                {/* TAB 2: QUICK DEMO ACCOUNTS (1-Click Login) */}
-                {activeTab === 'DEMO_ROLES' && (
-                  <div className="space-y-2.5">
-                    <p className="text-xs text-slate-500 mb-3">
-                      {isAr
-                        ? 'اختر أي حساب للدخول الفوري وتجربة بوابته الخاصة وصلاحياته المعتمدة:'
-                        : 'Select any profile for instant access to test its assigned portal & permissions:'}
-                    </p>
-
-                    <div className="grid grid-cols-1 gap-2.5 max-h-[380px] overflow-y-auto pe-1 [scrollbar-width:thin]">
-                      {demoAccounts.map((item, idx) => {
-                        const Icon = item.icon;
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() => handleSelectDemoProfile(item.profile)}
-                            className="group p-3 rounded-2xl border border-slate-200 hover:border-blue-300 bg-white hover:bg-blue-50/40 shadow-2xs hover:shadow-sm transition-all flex items-center justify-between gap-3 cursor-pointer"
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-slate-50 group-hover:bg-blue-100/60 border border-slate-200 group-hover:border-blue-200 flex items-center justify-center text-slate-600 group-hover:text-blue-700 transition-colors shrink-0">
-                                <Icon className="w-5 h-5" />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-bold text-slate-900 truncate">
-                                    {isAr ? item.profile.name : item.profile.nameEn || item.profile.name}
-                                  </span>
-                                  <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${item.badge}`}>
-                                    {isAr ? item.roleTitleAr : item.roleTitleEn}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                  {isAr ? item.descAr : item.descEn}
-                                </p>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              className="shrink-0 px-3 py-1.5 rounded-lg bg-blue-50 group-hover:bg-blue-600 text-blue-700 group-hover:text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                            >
-                              <span>{isAr ? 'دخول' : 'Enter'}</span>
-                              {isAr ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 3: MASTER KEY ACCESS */}
-                {activeTab === 'MASTER_KEY' && (
-                  <form onSubmit={handleMasterKeySubmit} className="space-y-4">
-                    <div className="p-3.5 rounded-2xl bg-purple-50/80 border border-purple-200 text-purple-900 text-xs leading-relaxed">
-                      <div className="flex items-center gap-2 font-bold mb-1">
-                        <Key className="w-4 h-4 text-purple-600" />
-                        <span>{isAr ? 'بوابة الماستر الإدارية (Master Key)' : 'Executive Master Key'}</span>
-                      </div>
-                      <p className="text-purple-800 text-[11px]">
-                        {isAr
-                          ? 'يسمح رمز الماستر للمديرين والمشرفين بتجاوز الحسابات والدخول الفوري بأي دور وصلاحية.'
-                          : 'Master Key grants administrative override for instant role testing and supervisor inspection.'}
-                      </p>
-                    </div>
-
-                    {/* Target Role selection */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        {isAr ? 'الدور المستهدف بعد الدخول:' : 'Target Portal Role:'}
-                      </label>
-                      <select
-                        value={masterTargetRole}
-                        onChange={(e) => setMasterTargetRole(e.target.value as UserPortalRole)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-purple-600 focus:ring-4 focus:ring-purple-50 text-slate-900 rounded-xl text-xs font-bold outline-hidden cursor-pointer"
-                      >
-                        <option value="MANAGEMENT">{isAr ? 'المدير العام (كامل الصلاحيات)' : 'General Manager (Full Access)'}</option>
-                        <option value="TECHNICIAN">{isAr ? 'كبير فنيي الصيانة' : 'Senior Field Technician'}</option>
-                        <option value="SALES_REP">{isAr ? 'مسؤول مبيعات المشاريع' : 'Project Sales Executive'}</option>
-                        <option value="CUSTOMER">{isAr ? 'بوابة العميل المعتمد' : 'Authorized Customer Portal'}</option>
-                        <option value="SUPPLIER">{isAr ? 'بوابة المورد المعتمد' : 'Authorized Supplier Portal'}</option>
-                      </select>
-                    </div>
-
-                    {/* Master Password Input */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        {isAr ? 'رمز الماستر العام (Master Password)' : 'Master Password'}
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 start-0 ps-3.5 flex items-center pointer-events-none text-slate-400">
-                          <Lock className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="password"
-                          required
-                          value={masterKeyInput}
-                          onChange={(e) => setMasterKeyInput(e.target.value)}
-                          placeholder="MASTER2026"
-                          className="w-full ps-10 pe-4 py-3 bg-white border border-slate-200 focus:border-purple-600 focus:ring-4 focus:ring-purple-50 text-slate-900 rounded-xl text-sm font-mono placeholder:text-slate-400 outline-hidden"
-                        />
-                      </div>
-                    </div>
-
-                    {/* 1-Click Fill Default Master */}
-                    <button
-                      type="button"
-                      onClick={() => setMasterKeyInput('MASTER2026')}
-                      className="w-full py-2 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                      <span>{isAr ? 'تعبئة الرمز الافتراضي: MASTER2026' : 'Autofill default: MASTER2026'}</span>
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white font-bold text-sm shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                    >
-                      {isLoading ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Key className="w-4 h-4" />
-                          <span>{isAr ? 'دخول بصلاحية الماستر' : 'Enter with Master Authority'}</span>
-                        </>
-                      )}
-                    </button>
-                  </form>
-                )}
-
-                {/* TAB 4: FORGOT PASSWORD WIZARD */}
+                {/* FORGOT PASSWORD WIZARD */}
                 {activeTab === 'FORGOT_PASSWORD' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -1098,7 +719,6 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
                   </div>
                 )}
               </div>
-            )}
           </div>
 
           {/* Direct Support & Branch Hotline Quick Info under card */}
@@ -1110,18 +730,18 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
             <div className="flex items-center gap-1.5">
               <Phone className="w-3.5 h-3.5 text-emerald-600" />
               <span>
-                {isAr ? 'طوارئ وصيانة الرياض:' : 'Riyadh Hotline:'}{' '}
-                <a href="tel:+966548117567" className="text-slate-700 font-bold hover:text-blue-600">
-                  +966 54 811 7567
+                {isAr ? 'Saudi Hotline:' : 'Saudi Hotline:'}{' '}
+                <a href="tel:+966548764412" className="text-slate-700 font-bold hover:text-blue-600" dir="ltr">
+                  +966 54 876 4412
                 </a>
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <Phone className="w-3.5 h-3.5 text-emerald-600" />
               <span>
-                {isAr ? 'فرع القاهرة:' : 'Cairo Branch:'}{' '}
-                <a href="tel:+201032712780" className="text-slate-700 font-bold hover:text-blue-600">
-                  +20 10 3271 2780
+                {isAr ? 'Egypt Hotline:' : 'Egypt Hotline:'}{' '}
+                <a href="tel:+201063131831" className="text-slate-700 font-bold hover:text-blue-600" dir="ltr">
+                  +20 10 63131 831
                 </a>
               </span>
             </div>
@@ -1144,10 +764,10 @@ export const ModernLoginPage: React.FC<ModernLoginPageProps> = ({
             <span>{isAr ? 'معتمد وفق معايير الدفاع المدني والمواصفة EN81-20' : 'EN81-20 & Civil Defense Certified'}</span>
             <span>•</span>
             <a
-              href="mailto:twins4tech@gmail.com"
+              href="mailto:info@twins4tech.com"
               className="text-blue-600 hover:text-blue-800 font-bold hover:underline"
             >
-              twins4tech@gmail.com
+              info@twins4tech.com
             </a>
           </div>
         </div>

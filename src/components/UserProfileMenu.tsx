@@ -118,7 +118,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
       {isOpen && (
         <div 
           dir={isAr ? 'rtl' : 'ltr'}
-          className="fixed top-16 left-3 right-3 max-w-xs mx-auto sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-1.5 sm:max-w-none sm:w-60 md:sm:w-64 rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 text-slate-800 z-50"
+          className="fixed top-16 left-3 right-3 max-w-xs mx-auto sm:absolute sm:inset-x-auto sm:top-full sm:left-0 sm:right-auto sm:mt-1.5 sm:max-w-none sm:w-64 rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 text-slate-800 z-50"
         >
           {/* User Profile Header Card - Clean & Light */}
           <div className="p-3 bg-slate-50 border-b border-slate-100">

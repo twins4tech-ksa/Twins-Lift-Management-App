@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile } from '../types/portal';
 import { 
   MaintenanceContract, 
@@ -7,7 +7,8 @@ import {
   MaintenanceVisit, 
   MaintenanceVisitStatus,
   VISIT_STATUS_CONFIG,
-  MaintenanceVisitReview 
+  MaintenanceVisitReview,
+  DamagedPartsVoucher
 } from '../types/maintenance';
 import { ElevatorSpecification } from '../types/elevator';
 import { CompanySettings, DEFAULT_COMPANY_SETTINGS } from '../types/settings';
@@ -34,8 +35,24 @@ import {
   Send,
   Award,
   Target,
-  ShieldCheck
+  ShieldCheck,
+  FileCheck2,
+  CloudUpload,
+  WifiOff,
+  Wifi,
+  Camera,
+  Image as ImageIcon,
+  Tag
 } from 'lucide-react';
+import { Sbc801InspectionReport } from '../types/inspection';
+import { Sbc801InspectionModal } from './Sbc801InspectionModal';
+import { Sbc801InspectionCertificateModal } from './Sbc801InspectionCertificateModal';
+import { DamagedPartsVoucherModal } from './DamagedPartsVoucherModal';
+import { BreakdownReportModal } from './BreakdownReportModal';
+import { OfflineSyncBanner } from './OfflineSyncBanner';
+import { PWAInstallButton } from './PWAInstallButton';
+import { useOnlineStatus, setSimulatedOffline, isSimulatedOfflineActive } from '../hooks/useOnlineStatus';
+import { offlineSyncService, OfflineSyncStatus } from '../services/offlineSyncService';
 import { 
   DAILY_TARGET_BREAKDOWNS, 
   DAILY_TARGET_MAINTENANCE, 
@@ -56,6 +73,7 @@ interface Props {
   breakdowns: MaintenanceBreakdown[];
   spec: ElevatorSpecification;
   onUpdateBreakdownStatus: (breakdownId: string, newStatus: BreakdownStatus) => void;
+  onSaveBreakdown?: (breakdown: MaintenanceBreakdown) => void;
   onOpenGpsCheckIn: () => void;
   onOpenDrawings: () => void;
   onOpenVisitReview?: (contractId: string, visitId: string) => void;
@@ -78,12 +96,36 @@ export const TechnicianPortalView: React.FC<Props> = ({
   breakdowns,
   spec,
   onUpdateBreakdownStatus,
+  onSaveBreakdown,
   onOpenGpsCheckIn,
   onOpenDrawings,
   onSaveContract,
   companySettings = DEFAULT_COMPANY_SETTINGS,
   isAr = true,
 }) => {
+  const isOnline = useOnlineStatus();
+  const [offlineSyncStatus, setOfflineSyncStatus] = useState<OfflineSyncStatus>(offlineSyncService.getStatus());
+  const [isSimulatedBasementOffline, setIsSimulatedBasementOffline] = useState<boolean>(() => isSimulatedOfflineActive());
+
+  const toggleBasementMode = () => {
+    const next = !isSimulatedBasementOffline;
+    setIsSimulatedBasementOffline(next);
+    setSimulatedOffline(next);
+    triggerToast(
+      next
+        ? (isAr ? 'تم تفعيل وضع البدروم وبئر المصعد (أوفلاين) — سيتم حفظ الفحوصات محلياً' : 'Basement & Well offline mode active — Data cached locally')
+        : (isAr ? 'تم الخروج من البدروم واستعادة الاتصال — جاري فحص ومزامنة البيانات السحابية' : 'Exited basement, online restored — Syncing pending records')
+    );
+  };
+
+  // Subscribe to offline sync updates
+  useEffect(() => {
+    const unsub = offlineSyncService.subscribe((status) => {
+      setOfflineSyncStatus(status);
+    });
+    return unsub;
+  }, []);
+
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const currentYearMonth = useMemo(() => todayStr.slice(0, 7), [todayStr]);
 
@@ -108,11 +150,75 @@ export const TechnicianPortalView: React.FC<Props> = ({
   const [waMessage, setWaMessage] = useState('');
   const [waRecipient, setWaRecipient] = useState('');
 
+  // Damaged Parts Voucher Modal state
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const [voucherContextBreakdown, setVoucherContextBreakdown] = useState<MaintenanceBreakdown | null>(null);
+  const [voucherContextVisit, setVoucherContextVisit] = useState<TechVisitItem | null>(null);
+  const [viewingVoucher, setViewingVoucher] = useState<DamagedPartsVoucher | null>(null);
+  const [allPartsVouchers, setAllPartsVouchers] = useState<DamagedPartsVoucher[]>(() => {
+    try {
+      const data = localStorage.getItem('twins_damaged_parts_vouchers');
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Breakdown Report Modal state
+  const [selectedBreakdownForReport, setSelectedBreakdownForReport] = useState<MaintenanceBreakdown | null>(null);
+
   // Toast
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
+  };
+
+  // SBC 801 Inspection state
+  const [isSbcModalOpen, setIsSbcModalOpen] = useState(false);
+  const [selectedElevatorForSbc, setSelectedElevatorForSbc] = useState<{
+    elevatorId: string;
+    elevatorName: string;
+    buildingName: string;
+    customerName: string;
+    customerPhone: string;
+  } | null>(null);
+
+  const [viewingCertificateReport, setViewingCertificateReport] = useState<Sbc801InspectionReport | null>(null);
+
+  // Stored SBC 801 Inspection Reports
+  const [allInspectionReports, setAllInspectionReports] = useState<Sbc801InspectionReport[]>(() => {
+    try {
+      const data = localStorage.getItem('twins_sbc801_all_reports');
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleReportSaved = (report: Sbc801InspectionReport) => {
+    setAllInspectionReports((prev) => [report, ...prev]);
+    setViewingCertificateReport(report);
+    triggerToast(isAr ? 'تم حفظ واعتماد تقرير الفحص الدوري SBC 801 بنجاح!' : 'SBC 801 Inspection Report Saved!');
+  };
+
+  const handleVoucherSaved = (voucher: DamagedPartsVoucher) => {
+    setAllPartsVouchers((prev) => [voucher, ...prev.filter((v) => v.id !== voucher.id)]);
+    triggerToast(isAr ? `تم حفظ وإصدار سند صرف قطع الغيار #${voucher.voucherNumber} بنجاح!` : `Voucher #${voucher.voucherNumber} saved!`);
+
+    // If linked to a breakdown, update status and append voucher
+    if (voucher.breakdownId) {
+      onUpdateBreakdownStatus(voucher.breakdownId, 'Requires_Parts');
+      const targetB = breakdowns.find((b) => b.id === voucher.breakdownId);
+      if (targetB && onSaveBreakdown) {
+        onSaveBreakdown({
+          ...targetB,
+          status: 'Requires_Parts',
+          partsVouchers: [...(targetB.partsVouchers || []), voucher],
+          partsRequired: [targetB.partsRequired, ...voucher.items.map((i) => `${i.partName} (${i.quantity})`)].filter(Boolean).join('، '),
+        });
+      }
+    }
   };
 
   // Filter tasks assigned to this technician (or all if user has canViewAllDepartmentRecords)
@@ -411,6 +517,9 @@ export const TechnicianPortalView: React.FC<Props> = ({
         </div>
       )}
 
+      {/* Offline Sync Banner (Always active when offline or pending sync) */}
+      <OfflineSyncBanner isAr={isAr} />
+
       {/* ===================================================================== */}
       {/* 1. TECHNICIAN WORKSPACE HERO                                          */}
       {/* ===================================================================== */}
@@ -420,56 +529,114 @@ export const TechnicianPortalView: React.FC<Props> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold border border-blue-400/30 mb-3">
               <Wrench className="w-3.5 h-3.5" />
-              <span>{isAr ? 'لوحة تحكم مهندس وفني الصيانة الميداني' : 'Technician Workspace'}</span>
+              <span>{isAr ? 'لوحة تحكم العمليات الميدانية وتطبيق الفنيين (PWA & Offline)' : 'Technician Field Operations & Mobility'}</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tight">
               {isAr ? `مرحباً، ${currentUser.name}` : `Welcome, ${currentUser.name}`}
             </h1>
             <p className="text-blue-100/80 text-sm mt-1.5 max-w-xl leading-relaxed">
               {isAr 
-                ? 'إدارة زيارات الصيانة الدورية المجدولة، التوثيق الفني، إرسال إشعارات الواتساب للعملاء، ومتابعة بلاغات الأعطال الطارئة.' 
-                : 'Manage scheduled maintenance visits, technical inspection reports, client WhatsApp notifications, and breakdown requests.'}
+                ? 'فحص دوري معتمد بكود SBC 801، توثيق الأعطال والقطع التالفة مباشرة بالكاميرا، وتوقيع العميل رقمياً دون انقطاع حتى داخل الآبار والبدروم.' 
+                : 'SBC 801 periodic inspection, camera defect documentation, spare parts disbursement, and offline client digital sign-offs.'}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedElevatorForSbc({
+                  elevatorId: contracts[0]?.elevatorProjectId || contracts[0]?.elevatorNumber || 'ELV-101',
+                  elevatorName: contracts[0]?.elevatorName || 'مصعد الركاب الرئيسي #1',
+                  buildingName: contracts[0]?.siteLocation || 'برج الأندلس التجاري',
+                  customerName: contracts[0]?.customerName || 'شركة الأندلس العقارية',
+                  customerPhone: contracts[0]?.customerPhone || '0551717838',
+                });
+                setIsSbcModalOpen(true);
+              }}
+              className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs md:text-sm rounded-2xl shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 hover:scale-[1.02] cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-300" />
+              <span>{isAr ? 'فحص دوري معتمد SBC 801 (24 نقطة)' : 'SBC 801 Inspection (24 Pts)'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setVoucherContextBreakdown(null);
+                setVoucherContextVisit(null);
+                setIsVoucherModalOpen(true);
+              }}
+              className="px-4 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs md:text-sm rounded-2xl shadow-lg shadow-amber-600/30 transition-all flex items-center gap-2 hover:scale-[1.02] cursor-pointer"
+            >
+              <Camera className="w-4 h-4 text-amber-200" />
+              <span>{isAr ? '📷 سند صرف قطع تالفة' : 'Damaged Parts'}</span>
+            </button>
+
             <button
               type="button"
               onClick={onOpenGpsCheckIn}
-              className="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs md:text-sm rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 hover:scale-[1.02] cursor-pointer"
+              className="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs md:text-sm rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 hover:scale-[1.02] cursor-pointer"
             >
               <Navigation className="w-4 h-4 fill-white" />
-              <span>{isAr ? 'تسجيل حضور الموقع GPS' : 'GPS Check-In'}</span>
+              <span>{isAr ? 'تسجيل حضور GPS' : 'GPS Check-In'}</span>
             </button>
-            <button
-              type="button"
-              onClick={onOpenDrawings}
-              className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs md:text-sm rounded-2xl border border-white/20 transition-all flex items-center gap-2"
-            >
-              <Layers className="w-4 h-4" />
-              <span>{isAr ? 'مخطط التعليق CAD' : 'CAD Drawing'}</span>
-            </button>
+
+            <PWAInstallButton isAr={isAr} variant="header" />
           </div>
         </div>
 
-        {/* Quick Privilege Badge & Data Scope Indicator */}
+        {/* Field Connectivity & Offline Basement Status */}
         <div className="mt-6 pt-5 border-t border-blue-800/60 flex flex-wrap items-center justify-between gap-3 text-xs text-blue-200">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>{isAr ? 'حالة الاتصال الميداني: متصل وجاهز لتنفيذ الزيارات' : 'Status: Online & Ready'}</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+              <span className="font-bold">
+                {isOnline 
+                  ? (isAr ? 'حالة الشبكة: متصل (أونلاين) مع المزامنة السحابية الفورية' : 'Status: Online & Cloud Synced') 
+                  : (isAr ? 'حالة الشبكة: وضع عدم الاتصال بالإنترنت (في البئر أو البدروم) — البيانات محفوظة محلياً' : 'Status: Offline in Well/Basement — Cached Safely')}
+              </span>
+            </div>
+
+            {/* Basement Mode Offline Simulator Button */}
+            <button
+              type="button"
+              onClick={toggleBasementMode}
+              className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs border ${
+                !isOnline
+                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-300 font-black'
+                  : 'bg-blue-800/80 hover:bg-blue-700/80 text-blue-100 border-blue-600/60'
+              }`}
+              title={isAr ? 'محاكاة انقطاع الاتصال في بئر أو بدروم المصعد لاختبار الأوفلاين والمزامنة' : 'Simulate well/basement offline disconnected mode'}
+            >
+              <WifiOff className="w-3.5 h-3.5" />
+              <span>
+                {!isOnline
+                  ? (isAr ? '🔌 وضع البدروم نشط (أوفلاين) — انقر للاتصال' : '🔌 In Basement (Offline) — Tap to reconnect')
+                  : (isAr ? 'محاكاة انقطاع الشبكة في البدروم' : 'Simulate Basement Offline')}
+              </span>
+            </button>
+
+            {offlineSyncStatus.pendingReportsCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-400/40">
+                {isAr ? `(${offlineSyncStatus.pendingReportsCount}) فحص بانتظار المزامنة` : `(${offlineSyncStatus.pendingReportsCount}) queued`}
+              </span>
+            )}
           </div>
 
-          {currentUser.canViewAllDepartmentRecords ? (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 text-[11px] font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
-              <span>{isAr ? 'نطاق الصلاحيات: مشاهدة كافة سجلات وإضافات قسم الصيانة (صلاحية موسعة)' : 'Scope: All Department Maintenance Records (Expanded)'}</span>
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/80 text-blue-300 border border-blue-700/60 text-[11px] font-medium">
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-              <span>{isAr ? 'نطاق العرض الطبيعي: ما تم إسناده إليك أو إدخاله بواسطتك فقط' : 'Scope: Assigned & Personal Records Only'}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {currentUser.canViewAllDepartmentRecords ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 text-[11px] font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                <span>{isAr ? 'صلاحيات قسم الصيانة: شاملة' : 'Scope: Department-wide'}</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/80 text-blue-300 border border-blue-700/60 text-[11px] font-medium">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>{isAr ? 'نطاق العرض: سجلاتك المسندة فقط' : 'Scope: Assigned Records Only'}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -751,6 +918,32 @@ export const TechnicianPortalView: React.FC<Props> = ({
 
                 {/* Status Update Quick Buttons */}
                 <div className="flex flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto justify-end">
+                  {/* Damaged Parts Photo & Voucher Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVoucherContextBreakdown(breakdown);
+                      setVoucherContextVisit(null);
+                      setIsVoucherModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    title={isAr ? 'التقاط صور للقطع التالفة بالكاميرا مباشرة وإصدار سند صرف' : 'Snap damaged parts and issue voucher'}
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-700" />
+                    <span>{isAr ? '📷 تصوير وسند صرف قطع' : 'Parts Voucher'}</span>
+                  </button>
+
+                  {/* Breakdown Report & Work Order Preview */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBreakdownForReport(breakdown)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
+                    title={isAr ? 'استعراض تقرير العطل وأمر العمل والتوقيع والصور' : 'View Report'}
+                  >
+                    <FileText className="w-3.5 h-3.5 text-slate-600" />
+                    <span>{isAr ? 'تقرير البلاغ' : 'Report'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => onUpdateBreakdownStatus(breakdown.id, 'In_Progress')}
@@ -774,7 +967,7 @@ export const TechnicianPortalView: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => onUpdateBreakdownStatus(breakdown.id, 'Resolved')}
-                    className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors flex items-center gap-1"
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>{isAr ? 'تم حل العطل بنجاح' : 'Resolved'}</span>
@@ -989,6 +1182,41 @@ export const TechnicianPortalView: React.FC<Props> = ({
                       <span>{isDone ? (isAr ? 'استعراض التقرير' : 'View Report') : (isAr ? 'توثيق الفحص' : 'Document Visit')}</span>
                     </button>
 
+                    {/* SBC 801 Standard 24-point Inspection Checklist */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedElevatorForSbc({
+                          elevatorId: item.contract.elevatorProjectId || item.contract.elevatorNumber || 'ELV-101',
+                          elevatorName: item.contract.elevatorName,
+                          buildingName: item.contract.siteLocation,
+                          customerName: item.contract.customerName,
+                          customerPhone: item.contract.customerPhone || '0551717838',
+                        });
+                        setIsSbcModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs rounded-xl border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
+                      title={isAr ? 'فحص دوري معتمد 24 بنداً وفق كود SBC 801' : 'SBC 801 24-Point Inspection'}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{isAr ? 'فحص SBC 801' : 'SBC 801'}</span>
+                    </button>
+
+                    {/* Damaged Parts Voucher for Visit */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVoucherContextVisit(item);
+                        setVoucherContextBreakdown(null);
+                        setIsVoucherModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+                      title={isAr ? 'تصوير وإصدار سند صرف لقطع الغيار المطلوبة للزيارة' : 'Issue Parts Voucher'}
+                    >
+                      <Camera className="w-3.5 h-3.5 text-amber-700" />
+                      <span>{isAr ? 'سند صرف قطع' : 'Parts Voucher'}</span>
+                    </button>
+
                     {/* Send WhatsApp to Client */}
                     <button
                       type="button"
@@ -1031,6 +1259,213 @@ export const TechnicianPortalView: React.FC<Props> = ({
             })
           )}
         </div>
+      </div>
+
+      {/* ===================================================================== */}
+      {/* 4. SBC 801 CERTIFICATES & INSPECTION REPORTS ARCHIVE                  */}
+      {/* ===================================================================== */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/80 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900">
+                {isAr ? 'تقارير وشهادات الفحص الدوري المعتمد (كود المصاعد SBC 801)' : 'SBC 801 Certified Inspection Reports'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {isAr 
+                  ? 'شهادات الفحص الشامل لـ 24 بند أمان معتمدة مع التوقيع الإلكتروني وتعمل دون اتصال بالإنترنت' 
+                  : 'Official 24-point safety certificates with e-signatures & offline support'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedElevatorForSbc({
+                elevatorId: contracts[0]?.elevatorProjectId || contracts[0]?.elevatorNumber || 'ELV-101',
+                elevatorName: contracts[0]?.elevatorName || 'مصعد الركاب الرئيسي #1',
+                buildingName: contracts[0]?.siteLocation || 'برج الأندلس التجاري',
+                customerName: contracts[0]?.customerName || 'شركة الأندلس العقارية',
+                customerPhone: contracts[0]?.customerPhone || '0551717838',
+              });
+              setIsSbcModalOpen(true);
+            }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>{isAr ? '+ فحص دوري جديد SBC 801' : '+ New SBC 801 Inspection'}</span>
+          </button>
+        </div>
+
+        {allInspectionReports.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allInspectionReports.map((rep) => (
+              <div
+                key={rep.id}
+                className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-blue-300 transition-all shadow-2xs space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-mono text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      #{rep.reportNumber}
+                    </span>
+                    <h4 className="font-black text-xs text-slate-900 mt-1">{rep.elevatorName}</h4>
+                    <p className="text-[11px] text-slate-500 truncate">{rep.buildingName} • {rep.customerName}</p>
+                  </div>
+
+                  <div className={`px-2.5 py-1 rounded-xl text-xs font-black border text-center ${
+                    rep.overallResult === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                    rep.overallResult === 'CONDITIONAL' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                    'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}>
+                    <span className="text-sm block">{rep.scorePercentage}%</span>
+                    <span className="text-[9px] block">
+                      {rep.overallResult === 'APPROVED' ? (isAr ? 'مطابق' : 'Pass') : rep.overallResult === 'CONDITIONAL' ? (isAr ? 'مشروط' : 'Watch') : (isAr ? 'خطر' : 'Fail')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-200/60 pt-2">
+                  <span>{rep.inspectionDate} • {rep.inspectionTime}</span>
+                  <span className={rep.isSynced ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
+                    {rep.isSynced ? (isAr ? '✓ متزامن بالسيرفر' : '✓ Synced') : (isAr ? 'محفوظ أوفلاين' : 'Offline')}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewingCertificateReport(rep)}
+                    className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                  >
+                    <FileCheck2 className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'عرض وطباعة الشهادة' : 'View Certificate'}</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+            <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />
+            <h4 className="text-xs font-bold text-slate-700">
+              {isAr ? 'لا توجد تقارير فحص دورية مسجلة بعد' : 'No inspection reports logged yet'}
+            </h4>
+            <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+              {isAr 
+                ? 'اضغط على زر "فحص دوري جديد SBC 801" لإجراء فحص شامل لـ 24 بند أمان وتوليد شهادة معتمدة للعميل مع توقيع إلكتروني.'
+                : 'Tap "New SBC 801 Inspection" to run 24-point code check and issue official certificate.'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ===================================================================== */}
+      {/* 5. DAMAGED PARTS VOUCHERS ARCHIVE (MATERIAL REQUISITIONS)             */}
+      {/* ===================================================================== */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/80 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+              <Camera className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900">
+                {isAr ? 'سندات صرف قطع الغيار التالفة الصادرة (توثيق ميداني بالكاميرا)' : 'Damaged Spare Parts Disbursement Vouchers'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {isAr 
+                  ? 'سندات معتمدة لطلب وصرف قطع الغيار المكسورة أو المتآكلة مع إرفاق الصور الحية وتوقيع العميل' 
+                  : 'Certified parts requisition vouchers with live camera evidence & digital sign-offs'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setVoucherContextBreakdown(null);
+              setVoucherContextVisit(null);
+              setIsVoucherModalOpen(true);
+            }}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+          >
+            <Camera className="w-4 h-4" />
+            <span>{isAr ? '+ إصدار سند صرف جديد' : '+ New Parts Voucher'}</span>
+          </button>
+        </div>
+
+        {allPartsVouchers.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allPartsVouchers.map((vch) => {
+              const photosCount = vch.items.filter((i) => i.photoUrl).length;
+              return (
+                <div
+                  key={vch.id}
+                  className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-amber-300 transition-all shadow-2xs space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-mono text-[10px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                        #{vch.voucherNumber}
+                      </span>
+                      <h4 className="font-black text-xs text-slate-900 mt-1">{vch.elevatorName}</h4>
+                      <p className="text-[11px] text-slate-500 truncate">{vch.buildingName} • {vch.customerName}</p>
+                    </div>
+
+                    <div className="px-2.5 py-1 rounded-xl text-xs font-black border text-center bg-amber-100 text-amber-900 border-amber-300">
+                      <span className="text-sm block">{vch.items.length}</span>
+                      <span className="text-[9px] block">
+                        {isAr ? 'قطع تالفة' : 'Parts'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Summary of items */}
+                  <div className="text-xs text-slate-700 space-y-1 bg-white p-2.5 rounded-xl border border-slate-200/80">
+                    <p className="text-[11px] font-bold text-slate-800 truncate">
+                      {vch.items.map((i) => `${i.partName} (${i.quantity})`).join('، ')}
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>{vch.requestDate}</span>
+                      <span className="text-blue-700 font-bold flex items-center gap-1">
+                        <Camera className="w-3 h-3" />
+                        <span>{isAr ? `${photosCount} صور مرفقة` : `${photosCount} photos`}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setViewingVoucher(vch)}
+                      className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'عرض وطباعة السند' : 'View Voucher'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+            <Wrench className="w-10 h-10 text-slate-300 mx-auto" />
+            <h4 className="text-xs font-bold text-slate-700">
+              {isAr ? 'لا توجد سندات صرف قطع غيار مسجلة حتى الآن' : 'No parts vouchers logged yet'}
+            </h4>
+            <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+              {isAr 
+                ? 'يمكنك التقاط صور للقطع التالفة مباشرة أثناء الزيارة أو معالجة البلاغ وإصدار سند صرف رسمي موجه للمستودع وإرفاقه بالتقرير.' 
+                : 'Take photos of damaged parts during visits to issue requisition vouchers with photo proof.'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Review & Certification Modal */}
@@ -1125,6 +1560,76 @@ export const TechnicianPortalView: React.FC<Props> = ({
         contextTitle={isAr ? `إشعار واتساب للعميل: ${waRecipient}` : `WhatsApp Client Notice`}
         isAr={isAr}
       />
+
+      {/* SBC 801 Inspection Checklist Modal */}
+      {isSbcModalOpen && (
+        <Sbc801InspectionModal
+          isOpen={isSbcModalOpen}
+          onClose={() => setIsSbcModalOpen(false)}
+          onSaved={handleReportSaved}
+          elevatorId={selectedElevatorForSbc?.elevatorId || 'ELV-101'}
+          elevatorName={selectedElevatorForSbc?.elevatorName || 'مصعد الركاب الرئيسي #1'}
+          buildingName={selectedElevatorForSbc?.buildingName || 'برج الأندلس التجاري'}
+          customerName={selectedElevatorForSbc?.customerName || 'شركة الأندلس العقارية'}
+          customerPhone={selectedElevatorForSbc?.customerPhone || '0551717838'}
+          technicianName={currentUser.name}
+          technicianId={currentUser.employeeId || 'TECH-101'}
+          isOnline={isOnline}
+          isAr={isAr}
+        />
+      )}
+
+      {/* SBC 801 Official Printable Certificate Modal */}
+      {viewingCertificateReport && (
+        <Sbc801InspectionCertificateModal
+          report={viewingCertificateReport}
+          onClose={() => setViewingCertificateReport(null)}
+          isAr={isAr}
+        />
+      )}
+
+      {/* Damaged Parts Disbursement Voucher Modal */}
+      {(isVoucherModalOpen || viewingVoucher) && (
+        <DamagedPartsVoucherModal
+          isOpen={Boolean(isVoucherModalOpen || viewingVoucher)}
+          onClose={() => {
+            setIsVoucherModalOpen(false);
+            setViewingVoucher(null);
+            setVoucherContextBreakdown(null);
+            setVoucherContextVisit(null);
+          }}
+          onSaveVoucher={handleVoucherSaved}
+          existingVoucher={viewingVoucher}
+          breakdownId={voucherContextBreakdown?.id}
+          visitId={voucherContextVisit?.visit.id}
+          contractId={voucherContextVisit?.contract.id}
+          elevatorId={voucherContextBreakdown?.elevatorNumber || voucherContextVisit?.contract.elevatorProjectId || voucherContextVisit?.contract.elevatorNumber || 'ELV-101'}
+          elevatorName={voucherContextBreakdown?.elevatorName || voucherContextVisit?.contract.elevatorName || 'مصعد الركاب الرئيسي'}
+          buildingName={voucherContextBreakdown?.siteLocation || voucherContextVisit?.contract.siteLocation || 'برج الأندلس التجاري'}
+          customerName={voucherContextBreakdown?.customerName || voucherContextVisit?.contract.customerName || 'شركة الأندلس العقارية'}
+          customerPhone={voucherContextBreakdown?.customerPhone || voucherContextVisit?.contract.customerPhone || '0551717838'}
+          technicianName={currentUser.name}
+          technicianId={currentUser.employeeId || 'TECH-101'}
+          isAr={isAr}
+        />
+      )}
+
+      {/* Breakdown Report & Work Order Modal */}
+      {selectedBreakdownForReport && (
+        <BreakdownReportModal
+          isOpen={Boolean(selectedBreakdownForReport)}
+          onClose={() => setSelectedBreakdownForReport(null)}
+          breakdown={selectedBreakdownForReport}
+          companySettings={companySettings}
+          language={isAr ? 'ar' : 'en'}
+          onOpenWhatsApp={(phone, message, recipient) => {
+            setWaPhone(phone);
+            setWaMessage(message);
+            setWaRecipient(recipient);
+            setWaModalOpen(true);
+          }}
+        />
+      )}
     </div>
   );
 };

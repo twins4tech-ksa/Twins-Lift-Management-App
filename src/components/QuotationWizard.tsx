@@ -63,6 +63,7 @@ import { SaudiRiyalSymbol, SarPrice } from './SaudiRiyalSymbol';
 import { AppLanguage, TRANSLATIONS } from '../utils/translations';
 import { ProjectTimeline } from './ProjectTimeline';
 import { ProjectTimelineProgressBar } from './ProjectTimelineProgressBar';
+import { ProjectTimelineLaborView } from './ProjectTimelineLaborView';
 import { SearchableSelect } from './SearchableSelect';
 
 interface Props {
@@ -80,7 +81,7 @@ interface Props {
   onAddCustomer?: (customerData: Omit<Customer, 'id' | 'createdAt'>) => Customer | void;
 }
 
-type WizardTab = 'PROJECT' | 'TECHNICAL' | 'SHAFT_CABIN' | 'FINISHES' | 'OPTIONS' | 'COMMERCIAL';
+type WizardTab = 'PROJECT' | 'TECHNICAL' | 'SHAFT_CABIN' | 'FINISHES' | 'OPTIONS' | 'COMMERCIAL' | 'TIMELINE';
 
 export const QuotationWizard: React.FC<Props> = ({
   spec,
@@ -395,14 +396,6 @@ export const QuotationWizard: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Project Timeline Milestones Progress Bar (Engineering -> Manufacturing -> Shipping -> Installation) */}
-      <ProjectTimelineProgressBar
-        spec={spec}
-        language={language}
-        onUpdateSpec={onUpdateSpec}
-        onNavigateToFullTimeline={() => setActiveTab('COMMERCIAL')}
-      />
-
       {/* Top Wizard Steps Bar */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-2.5">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth w-full max-w-full pb-1 text-xs">
@@ -488,6 +481,25 @@ export const QuotationWizard: React.FC<Props> = ({
           >
             <SaudiRiyalSymbol className="w-4 h-4 shrink-0" />
             {isAr ? '6. التسعير والشروط' : '6. Pricing & Terms'}
+          </button>
+
+          <button
+            id="tab-step-timeline"
+            type="button"
+            onClick={() => setActiveTab('TIMELINE')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+              activeTab === 'TIMELINE'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-indigo-900 hover:bg-slate-100'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-amber-300" />
+            {isAr ? '7. المسار الزمني وتكلفة العمالة' : '7. Timeline & Labor Cost'}
+            {spec.laborLogs && spec.laborLogs.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/20 text-white">
+                {spec.laborLogs.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -1924,16 +1936,19 @@ export const QuotationWizard: React.FC<Props> = ({
                   />
                 </div>
               </div>
-
-              {/* Visual Project Timeline & Lead Time Milestone Component */}
-              <div className="pt-2">
-                <ProjectTimeline
-                  spec={spec}
-                  language={isAr ? 'ar' : 'en'}
-                  onUpdateSpec={onUpdateSpec}
-                />
-              </div>
             </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* TAB 7: PROJECT TIMELINE & FIELD LABOR COST CENTER           */}
+          {/* ============================================================ */}
+          {activeTab === 'TIMELINE' && (
+            <ProjectTimelineLaborView
+              spec={spec}
+              employees={employees}
+              language={isAr ? 'ar' : 'en'}
+              onUpdateSpec={onUpdateSpec}
+            />
           )}
 
           {/* Wizard Navigation Footer */}
@@ -1943,7 +1958,7 @@ export const QuotationWizard: React.FC<Props> = ({
               type="button"
               disabled={activeTab === 'PROJECT'}
               onClick={() => {
-                const tabs: WizardTab[] = ['PROJECT', 'TECHNICAL', 'SHAFT_CABIN', 'FINISHES', 'OPTIONS', 'COMMERCIAL'];
+                const tabs: WizardTab[] = ['PROJECT', 'TECHNICAL', 'SHAFT_CABIN', 'FINISHES', 'OPTIONS', 'COMMERCIAL', 'TIMELINE'];
                 const idx = tabs.indexOf(activeTab);
                 if (idx > 0) setActiveTab(tabs[idx - 1]);
               }}
@@ -1960,7 +1975,7 @@ export const QuotationWizard: React.FC<Props> = ({
               id="btn-wizard-next-step"
               type="button"
               onClick={() => {
-                const tabs: WizardTab[] = ['PROJECT', 'TECHNICAL', 'SHAFT_CABIN', 'FINISHES', 'OPTIONS', 'COMMERCIAL'];
+                const tabs: WizardTab[] = ['PROJECT', 'TECHNICAL', 'SHAFT_CABIN', 'FINISHES', 'OPTIONS', 'COMMERCIAL', 'TIMELINE'];
                 const idx = tabs.indexOf(activeTab);
                 if (idx < tabs.length - 1) {
                   setActiveTab(tabs[idx + 1]);
@@ -1970,7 +1985,7 @@ export const QuotationWizard: React.FC<Props> = ({
               }}
               className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
             >
-              {activeTab === 'COMMERCIAL' ? (
+              {activeTab === 'TIMELINE' ? (
                 <>
                   <span>{isAr ? 'عرض مخططات CAD' : 'View CAD Drawings'}</span>
                   <Layers className="w-3.5 h-3.5" />

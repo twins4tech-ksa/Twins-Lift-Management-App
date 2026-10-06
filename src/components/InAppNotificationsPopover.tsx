@@ -304,7 +304,7 @@ export const InAppNotificationsPopover: React.FC<InAppNotificationsPopoverProps>
       {isOpen && (
         <div
           dir={isAr ? 'rtl' : 'ltr'}
-          className="fixed top-16 left-3 right-3 max-w-sm mx-auto sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-1.5 sm:max-w-none sm:w-80 md:sm:w-84 rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 text-slate-800 z-50"
+          className="fixed top-16 left-3 right-3 max-w-sm mx-auto sm:absolute sm:inset-x-auto sm:top-full sm:left-0 sm:right-auto sm:mt-1.5 sm:max-w-none sm:w-80 md:sm:w-88 rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 text-slate-800 z-50"
           style={{ maxHeight: '85vh' }}
         >
           {/* Header */}

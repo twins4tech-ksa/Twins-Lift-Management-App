@@ -294,6 +294,12 @@ export interface Employee {
   joinDate: string;           // YYYY-MM-DD
   avatarBg?: string;          // Tailwind color class e.g. "bg-blue-600"
 
+  // Salary & Compensation (الرواتب والبدلات)
+  basicSalary?: number;       // الراتب الأساسي الشهري (SAR)
+  housingAllowance?: number;  // بدل سكن (SAR)
+  transportAllowance?: number;// بدل مواصلات / انتقال (SAR)
+  totalSalary?: number;       // إجمالي الراتب الشهري (SAR)
+
   // Portal & System User Account (حساب مستخدم النظام وبوابة الدخول)
   portalUser?: EmployeePortalUser;
 
@@ -488,6 +494,10 @@ export const SAMPLE_EMPLOYEES: Employee[] = [
     status: 'ACTIVE',
     joinDate: '2023-01-01',
     avatarBg: 'bg-rose-700',
+    basicSalary: 15000,
+    housingAllowance: 3750,
+    transportAllowance: 1250,
+    totalSalary: 20000,
     portalUser: {
       hasAccount: true,
       userId: 'user-mgt-01',
@@ -516,6 +526,10 @@ export const SAMPLE_EMPLOYEES: Employee[] = [
     status: 'ACTIVE',
     joinDate: '2023-06-01',
     avatarBg: 'bg-blue-600',
+    basicSalary: 4500,
+    housingAllowance: 1000,
+    transportAllowance: 500,
+    totalSalary: 6000,
     technicianSpecialty: 'صيانة دورية، طوارئ، كروت VVVF ولوحات التحكم',
     assignedZone: 'الرياض والمناطق المجاورة',
     emergencyOnCall: true,
@@ -548,6 +562,10 @@ export const SAMPLE_EMPLOYEES: Employee[] = [
     status: 'ACTIVE',
     joinDate: '2024-01-15',
     avatarBg: 'bg-emerald-600',
+    basicSalary: 5500,
+    housingAllowance: 1250,
+    transportAllowance: 750,
+    totalSalary: 7500,
     commissionRate: 3.0,
     monthlyTargetSar: 250000,
     monthlyTargetElevators: 4,
@@ -580,6 +598,10 @@ export const SAMPLE_EMPLOYEES: Employee[] = [
     status: 'ACTIVE',
     joinDate: '2023-03-01',
     avatarBg: 'bg-purple-600',
+    basicSalary: 7500,
+    housingAllowance: 1750,
+    transportAllowance: 750,
+    totalSalary: 10000,
     portalUser: {
       hasAccount: true,
       userId: 'user-install-01',
@@ -608,6 +630,10 @@ export const SAMPLE_EMPLOYEES: Employee[] = [
     status: 'ACTIVE',
     joinDate: '2024-02-01',
     avatarBg: 'bg-teal-600',
+    basicSalary: 6000,
+    housingAllowance: 1500,
+    transportAllowance: 500,
+    totalSalary: 8000,
     portalUser: {
       hasAccount: true,
       userId: 'user-fin-01',
@@ -636,6 +662,10 @@ export const SAMPLE_EMPLOYEES: Employee[] = [
     status: 'ACTIVE',
     joinDate: '2023-10-01',
     avatarBg: 'bg-amber-600',
+    basicSalary: 4200,
+    housingAllowance: 1000,
+    transportAllowance: 500,
+    totalSalary: 5700,
     portalUser: {
       hasAccount: true,
       userId: 'user-wh-01',
@@ -664,6 +694,10 @@ export const SAMPLE_EMPLOYEES: Employee[] = [
     status: 'ACTIVE',
     joinDate: '2024-04-01',
     avatarBg: 'bg-cyan-600',
+    basicSalary: 4500,
+    housingAllowance: 1000,
+    transportAllowance: 500,
+    totalSalary: 6000,
     portalUser: {
       hasAccount: true,
       userId: 'user-care-01',
@@ -690,9 +724,19 @@ export type AttendanceCheckInType =
   | 'EMERGENCY_BREAKDOWN'     // عطل طارئ وتدخل فوري
   | 'SITE_INSPECTION'         // معاينة موقع ورفع مقاسات البئر
   | 'CLIENT_MEETING'          // اجتماع مبيعات وتفاوض (مندوب)
-  | 'INSTALLATION_SUPERVISION';// إشراف ومطابقة شاقول وتركيبات
+  | 'INSTALLATION_SUPERVISION'// إشراف ومطابقة شاقول وتركيبات
+  | 'MANUAL_ATTENDANCE'       // تحضير يدوي من الإدارة
+  | 'OFFICE_WORK';            // دوام مكتبي
 
 export type AttendanceStatus = 'VERIFIED_IN_RANGE' | 'OUT_OF_RANGE_OVERRIDE' | 'REJECTED';
+
+export type ManualAttendanceStatus = 
+  | 'PRESENT'      // حاضر
+  | 'ABSENT'       // غائب
+  | 'ON_LEAVE'     // إجازة
+  | 'ON_SITE'      // عمل ميداني / موقع
+  | 'LATE'         // متأخر
+  | 'MISSION';     // مهمة عمل خارجية
 
 export interface SiteAttendanceRecord {
   id: string;
@@ -701,6 +745,7 @@ export interface SiteAttendanceRecord {
   employeeRole: EmployeeRole;
   employeePhone?: string;
   checkInType: AttendanceCheckInType;
+  manualStatus?: ManualAttendanceStatus; // Added for manual attendance wizard
 
   // Target Client & Project
   projectId?: string;
@@ -760,6 +805,18 @@ export const CHECKIN_TYPE_CONFIG: Record<AttendanceCheckInType, { labelAr: strin
     labelEn: 'Installation Supervision',
     iconColor: 'text-purple-600',
     bg: 'bg-purple-50 text-purple-800 border-purple-200',
+  },
+  MANUAL_ATTENDANCE: {
+    labelAr: 'تحضير يدوي من الإدارة',
+    labelEn: 'Manual Attendance Record',
+    iconColor: 'text-indigo-600',
+    bg: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+  },
+  OFFICE_WORK: {
+    labelAr: 'دوام مكتبي وإداري',
+    labelEn: 'Office & Admin Work',
+    iconColor: 'text-teal-600',
+    bg: 'bg-teal-50 text-teal-800 border-teal-200',
   },
 };
 

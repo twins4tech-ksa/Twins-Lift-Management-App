@@ -72,6 +72,7 @@ export const SiteAttendanceModal: React.FC<SiteAttendanceModalProps> = ({
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [currentGps, setCurrentGps] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Default coordinate if none on project: Riyadh Center 24.7136, 46.6753
   const activeProject = projects.find(p => p.id === selectedProjectId);
@@ -165,24 +166,36 @@ export const SiteAttendanceModal: React.FC<SiteAttendanceModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    const emp = employees.find(x => x.id === selectedEmployeeId);
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().slice(0, 5);
+
+    // RULE: "make joining date first date can attend"
+    if (emp?.joinDate && dateStr < emp.joinDate) {
+      setFormError(
+        isAr
+          ? `لا يمكن تسجيل حضور الموظف (${emp.name}) اليوم (${dateStr})، نظراً لأن تاريخ مباشرته والتحاقه الرسمي هو (${emp.joinDate}).`
+          : `Cannot register attendance for ${emp.name} today (${dateStr}). Official joining date is ${emp.joinDate}.`
+      );
+      return;
+    }
+
     if (!currentGps) {
-      alert(isAr ? 'يرجى التقاط إحداثيات موقعك عبر GPS أولاً' : 'Please capture GPS location first');
+      setFormError(isAr ? 'يرجى التقاط إحداثيات موقعك عبر GPS أولاً' : 'Please capture GPS location first');
       return;
     }
 
     if (!isWithinRadius && isStrict && !overrideReason.trim()) {
-      alert(
+      setFormError(
         isAr
           ? `أنت خارج نطاق موقع العميل (${calculatedDistance}م > ${allowedRadius}م). يرجى كتابة مبرر وسبب التجاوز لاعتماد الحضور.`
           : `You are out of the allowed radius. Please provide an override reason to continue.`
       );
       return;
     }
-
-    const emp = employees.find(x => x.id === selectedEmployeeId);
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const timeStr = now.toTimeString().slice(0, 5);
 
     const record: SiteAttendanceRecord = {
       id: `att-${Date.now()}`,
@@ -247,6 +260,23 @@ export const SiteAttendanceModal: React.FC<SiteAttendanceModalProps> = ({
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 text-xs sm:text-sm">
+          {/* Error Banner */}
+          {formError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="font-semibold">{formError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormError(null)}
+                className="text-rose-400 hover:text-rose-700 p-0.5 rounded cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Employee & Role selection */}
           <div>
             <label className="block font-bold text-slate-800 mb-1 flex items-center gap-1.5">

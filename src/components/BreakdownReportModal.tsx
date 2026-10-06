@@ -16,7 +16,9 @@ import {
   ShieldCheck, 
   MessageSquare,
   Building2,
-  DollarSign
+  DollarSign,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react';
 import { SendWhatsAppModal } from './SendWhatsAppModal';
 
@@ -297,6 +299,102 @@ export const BreakdownReportModal: React.FC<Props> = ({
             )}
           </div>
 
+          {/* Photo Documentation Section (Before & After & Damaged Parts) */}
+          {((breakdown.beforePhotos && breakdown.beforePhotos.length > 0) || (breakdown.afterPhotos && breakdown.afterPhotos.length > 0)) && (
+            <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+              <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Camera className="w-4 h-4 text-blue-600" />
+                <span>{isAr ? 'التوثيق المصور الميداني للقطع والعطل:' : 'Field Photographic Evidence:'}</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Before Photos */}
+                {breakdown.beforePhotos && breakdown.beforePhotos.length > 0 && (
+                  <div className="space-y-1.5 bg-amber-50/50 p-2.5 rounded-lg border border-amber-200">
+                    <span className="text-[11px] font-bold text-amber-900 block">
+                      {isAr ? '📷 صور العطل والقطع التالفة (قبل الإصلاح):' : 'Before Repair:'}
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {breakdown.beforePhotos.map((img, idx) => (
+                        <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-amber-300 shadow-2xs">
+                          <img src={img} alt="Before" className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* After Photos */}
+                {breakdown.afterPhotos && breakdown.afterPhotos.length > 0 && (
+                  <div className="space-y-1.5 bg-emerald-50/50 p-2.5 rounded-lg border border-emerald-200">
+                    <span className="text-[11px] font-bold text-emerald-900 block">
+                      {isAr ? '📷 صور ما بعد الإصلاح واستبدال القطع:' : 'After Repair:'}
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {breakdown.afterPhotos.map((img, idx) => (
+                        <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-emerald-300 shadow-2xs">
+                          <img src={img} alt="After" className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Linked Damaged Parts Disbursement Vouchers (Requisitions) */}
+          {breakdown.partsVouchers && breakdown.partsVouchers.length > 0 && (
+            <div className="border border-amber-300 rounded-xl p-4 bg-amber-50/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                  <Wrench className="w-4 h-4 text-amber-700" />
+                  <span>{isAr ? 'سندات صرف وحصر قطع الغيار التالفة المرفقة:' : 'Requisition Vouchers for Damaged Parts:'}</span>
+                </h4>
+                <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                  {isAr ? `${breakdown.partsVouchers.length} سند موثق` : `${breakdown.partsVouchers.length} Vouchers`}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {breakdown.partsVouchers.map((vch) => (
+                  <div key={vch.id} className="bg-white p-3 rounded-xl border border-amber-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300 text-[10px]">
+                          #{vch.voucherNumber}
+                        </span>
+                        <span className="text-slate-500 text-[10px]">{vch.requestDate}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        {isAr ? 'موجه للمستودع والصرف' : 'Dispatched to Warehouse'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {vch.items.map((item) => (
+                        <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                          {item.photoUrl && (
+                            <img src={item.photoUrl} alt={item.partName} className="w-12 h-12 object-cover rounded-md border border-slate-300 shrink-0" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-800 text-[11px] truncate">{item.partName}</div>
+                            <div className="text-[10px] text-slate-500">
+                              {isAr ? `الكمية: ${item.quantity} • السبب: ${item.damageReason}` : `Qty: ${item.quantity} • Reason: ${item.damageReason}`}
+                            </div>
+                            <div className="text-[9px] font-bold text-amber-700">
+                              {item.urgency === 'EMERGENCY' ? (isAr ? '🚨 طارئ جداً' : 'Emergency') : (isAr ? 'أولوية عاجلة' : 'High Urgency')}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Completion Status & Signatures Box */}
           <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 bg-white space-y-6">
             <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-200">
@@ -311,24 +409,28 @@ export const BreakdownReportModal: React.FC<Props> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-8 text-center text-xs">
-              <div className="space-y-8">
+              <div className="space-y-2">
                 <span className="font-bold text-slate-700 block">
                   {isAr ? 'الفني المختص المنفذ للعملية' : 'Technician Signature'}
                 </span>
-                <div className="border-b border-slate-400 pb-1 font-bold text-slate-900">
+                <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 h-20 flex items-center justify-center font-bold text-slate-900">
                   {breakdown.assignedTechnicianName || (isAr ? 'فني الطوارئ المعتمد' : 'Certified Tech')}
                 </div>
-                <div className="text-[10px] text-slate-400">{isAr ? 'التوقيع والتاريخ' : 'Signature & Date'}</div>
+                <div className="text-[10px] text-slate-400">{isAr ? 'التوقيع والاعتماد الفني' : 'Signature & Date'}</div>
               </div>
 
-              <div className="space-y-8">
+              <div className="space-y-2">
                 <span className="font-bold text-slate-700 block">
                   {isAr ? 'استلام واعتماد العميل / مسؤول الموقع' : 'Customer Acceptance'}
                 </span>
-                <div className="border-b border-slate-400 pb-1 font-bold text-slate-900">
-                  {breakdown.customerName}
+                <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 h-20 flex items-center justify-center">
+                  {breakdown.clientSignatureDataUrl ? (
+                    <img src={breakdown.clientSignatureDataUrl} alt="Client Signature" className="max-h-16 max-w-full object-contain" />
+                  ) : (
+                    <span className="font-bold text-slate-900 text-xs">{breakdown.customerName}</span>
+                  )}
                 </div>
-                <div className="text-[10px] text-slate-400">{isAr ? 'التوقيع وختم الاستلام' : 'Signature & Stamp'}</div>
+                <div className="text-[10px] text-slate-400">{isAr ? 'التوقيع وختم الاستلام الحي' : 'Signature & Stamp'}</div>
               </div>
             </div>
           </div>
