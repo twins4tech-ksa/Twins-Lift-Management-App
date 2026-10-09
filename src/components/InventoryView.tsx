@@ -1103,17 +1103,91 @@ export const InventoryView: React.FC<Props> = ({
                         )}
                       </td>
                       <td className="py-2.5 px-3">
-                        <div 
-                          onClick={() => {
-                            const found = inventory.find((i) => i.id === mov.itemId || i.sku === mov.sku);
-                            if (found) setHistoryItem(found);
-                          }}
-                          className="font-bold text-slate-900 hover:text-blue-600 cursor-pointer transition-colors"
-                          title={isAr ? 'عرض سجل حركات هذا الصنف' : 'View item history'}
-                        >
-                          {mov.itemName}
-                        </div>
-                        <div className="text-[10px] font-mono text-amber-700">{mov.sku}</div>
+                        {(() => {
+                          const normId = (mov.itemId || '').trim().toLowerCase();
+                          const normSku = (mov.sku || '').trim().toLowerCase();
+                          const normName = (mov.itemName || '').trim().toLowerCase();
+                          const itemData = inventory.find((i) => {
+                            const iId = (i.id || '').trim().toLowerCase();
+                            const iSku = (i.sku || '').trim().toLowerCase();
+                            const iNameAr = (i.nameAr || '').trim().toLowerCase();
+                            const iNameEn = (i.nameEn || '').trim().toLowerCase();
+                            return (
+                              (normId && iId === normId) ||
+                              (normSku && iSku === normSku) ||
+                              (normName && (iNameAr === normName || iNameEn === normName))
+                            );
+                          });
+
+                          const catInfo = itemData ? INVENTORY_CATEGORIES_INFO[itemData.category] : null;
+
+                          const openItemModal = () => {
+                            if (itemData) {
+                              setHistoryItem(itemData);
+                            } else {
+                              const fallbackItem: InventoryItem = {
+                                id: mov.itemId || `ITEM-${mov.sku || 'TEMP'}`,
+                                sku: mov.sku || 'SKU-N/A',
+                                nameAr: mov.itemName || (isAr ? 'صنف مخزني مسجل' : 'Inventory Item'),
+                                nameEn: mov.itemName || 'Inventory Item',
+                                category: 'SPARE_PARTS',
+                                specification: mov.notes || (isAr ? 'بيانات مسترجعة من حركة المخزون' : 'Recorded from movement log'),
+                                quantityOnHand: mov.newQty ?? mov.quantity ?? 1,
+                                quantityReserved: 0,
+                                minStockLevel: 2,
+                                unit: isAr ? 'قطعة' : 'pcs',
+                                unitCost: 0,
+                                supplier: isAr ? 'مورد معتمد' : 'Approved Vendor',
+                                location: isAr ? 'المستودع المركزي' : 'Central Warehouse',
+                                leadTimeDays: 7,
+                              };
+                              setHistoryItem(fallbackItem);
+                            }
+                          };
+
+                          return (
+                            <div className="space-y-1">
+                              <div 
+                                onClick={openItemModal}
+                                className="font-bold text-slate-900 hover:text-blue-600 cursor-pointer transition-colors leading-tight"
+                                title={isAr ? 'عرض سجل وبيانات الصنف كاملاً' : 'View full item data and history'}
+                              >
+                                {mov.itemName || itemData?.nameAr || itemData?.nameEn || mov.sku}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span 
+                                  onClick={openItemModal}
+                                  className="text-[10px] font-mono font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 hover:bg-amber-100 cursor-pointer transition-colors"
+                                  title={isAr ? 'كود الصنف - انقر لعرض التفاصيل' : 'Item SKU'}
+                                >
+                                  {mov.sku}
+                                </span>
+
+                                {catInfo && (
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${catInfo.color}`}>
+                                    {isAr ? catInfo.labelAr.split(' ')[0] : catInfo.labelEn.split(' ')[0]}
+                                  </span>
+                                )}
+
+                                {itemData && (
+                                  <span className="text-[10px] text-slate-500 font-medium flex items-center gap-0.5">
+                                    <span>{isAr ? 'الرصيد:' : 'Stock:'}</span>
+                                    <span className="font-mono font-bold text-slate-800">{itemData.quantityOnHand}</span>
+                                    <span className="text-[9px]">{itemData.unit}</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {itemData?.location && (
+                                <div className="text-[10px] text-slate-400 flex items-center gap-1 truncate max-w-[200px]" title={itemData.location}>
+                                  <MapPin className="w-2.5 h-2.5 shrink-0" />
+                                  <span className="truncate">{itemData.location}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-2.5 px-3 text-center font-mono font-black text-sm">
                         <span className={mov.type === 'IN' ? 'text-emerald-700' : 'text-amber-700'}>
@@ -1137,22 +1211,56 @@ export const InventoryView: React.FC<Props> = ({
                         {mov.performedBy || 'المسؤول'}
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const found = inventory.find((i) => i.id === mov.itemId || i.sku === mov.sku);
-                            if (found) {
-                              setHistoryItem(found);
-                            } else {
-                              onShowToast(isAr ? 'لم يتم العثور على الصنف بالمستودع' : 'Item not found in warehouse');
-                            }
-                          }}
-                          className="px-2 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors inline-flex items-center gap-1 text-[11px] font-bold cursor-pointer shadow-2xs"
-                          title={isAr ? 'عرض سجل حركات هذا الصنف كاملاً' : 'View full item history'}
-                        >
-                          <History className="w-3 h-3 text-blue-600" />
-                          <span>{isAr ? 'السجل' : 'History'}</span>
-                        </button>
+                        {(() => {
+                          const normId = (mov.itemId || '').trim().toLowerCase();
+                          const normSku = (mov.sku || '').trim().toLowerCase();
+                          const normName = (mov.itemName || '').trim().toLowerCase();
+                          const itemData = inventory.find((i) => {
+                            const iId = (i.id || '').trim().toLowerCase();
+                            const iSku = (i.sku || '').trim().toLowerCase();
+                            const iNameAr = (i.nameAr || '').trim().toLowerCase();
+                            const iNameEn = (i.nameEn || '').trim().toLowerCase();
+                            return (
+                              (normId && iId === normId) ||
+                              (normSku && iSku === normSku) ||
+                              (normName && (iNameAr === normName || iNameEn === normName))
+                            );
+                          });
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (itemData) {
+                                  setHistoryItem(itemData);
+                                } else {
+                                  const fallbackItem: InventoryItem = {
+                                    id: mov.itemId || `ITEM-${mov.sku || 'TEMP'}`,
+                                    sku: mov.sku || 'SKU-N/A',
+                                    nameAr: mov.itemName || (isAr ? 'صنف مخزني' : 'Inventory Item'),
+                                    nameEn: mov.itemName || 'Inventory Item',
+                                    category: 'SPARE_PARTS',
+                                    specification: mov.notes || (isAr ? 'بيانات مسترجعة من حركة المخزون' : 'Recorded from movement log'),
+                                    quantityOnHand: mov.newQty ?? mov.quantity ?? 1,
+                                    quantityReserved: 0,
+                                    minStockLevel: 2,
+                                    unit: isAr ? 'قطعة' : 'pcs',
+                                    unitCost: 0,
+                                    supplier: isAr ? 'مورد معتمد' : 'Approved Vendor',
+                                    location: isAr ? 'المستودع المركزي' : 'Central Warehouse',
+                                    leadTimeDays: 7,
+                                  };
+                                  setHistoryItem(fallbackItem);
+                                }
+                              }}
+                              className="px-2.5 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors inline-flex items-center gap-1.5 text-[11px] font-bold cursor-pointer shadow-2xs"
+                              title={isAr ? 'عرض بيانات الصنف الفنية وسجل الحركات كاملاً' : 'View full item data and movement history'}
+                            >
+                              <History className="w-3.5 h-3.5 text-blue-600" />
+                              <span>{isAr ? 'السجل والبيانات' : 'History & Data'}</span>
+                            </button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}

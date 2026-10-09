@@ -62,6 +62,24 @@ const COMMON_TASK_TAGS_EN = [
   'Shaft Clearance Survey & CAD Compliance',
 ];
 
+const OVERTIME_REASON_PRESETS_AR = [
+  'استعجال تسليم المشروع للعميل',
+  'تأخر الأعمال المدنية وتمديد الوردية',
+  'فحص واختبارات السلامة والتشغيل المسائية',
+  'أعمال طوارئ وصيانة حرجة بالموقع',
+  'طلب مباشر من الاستشاري / المقاول',
+  'تفريغ وتعتيق شحنة القطع والمعدات',
+];
+
+const OVERTIME_REASON_PRESETS_EN = [
+  'Urgent client handover deadline',
+  'Civil works delay & shift extension',
+  'Evening commissioning & safety tests',
+  'Critical site troubleshooting & emergency',
+  'Direct consultant / contractor request',
+  'Unloading & hoisting heavy equipment',
+];
+
 export const DailyProjectTimesheetEntry: React.FC<DailyProjectTimesheetEntryProps> = ({
   spec,
   employees,
@@ -92,9 +110,11 @@ export const DailyProjectTimesheetEntry: React.FC<DailyProjectTimesheetEntryProp
   const [endTime, setEndTime] = useState<string>('17:00');
   const [breakMinutes, setBreakMinutes] = useState<number>(60);
 
-  // Overtime state
-  const [enableOvertimeCalc, setEnableOvertimeCalc] = useState<boolean>(true);
+  // Overtime state - Toggle & Reason
+  const [isOvertime, setIsOvertime] = useState<boolean>(false);
+  const [overtimeReason, setOvertimeReason] = useState<string>('');
   const [overtimeMultiplier, setOvertimeMultiplier] = useState<number>(1.5);
+  const [customOvertimeHours, setCustomOvertimeHours] = useState<number | ''>('');
 
   // Milestone and Task description
   const [milestone, setMilestone] = useState<ProjectMilestoneKey | 'General'>(initialMilestone);
@@ -142,13 +162,22 @@ export const DailyProjectTimesheetEntry: React.FC<DailyProjectTimesheetEntryProp
     let regularHours = totalNetHours;
     let overtimeHours = 0;
 
-    if (enableOvertimeCalc && totalNetHours > 8) {
-      regularHours = 8;
-      overtimeHours = Math.round((totalNetHours - 8) * 10) / 10;
+    if (isOvertime) {
+      if (typeof customOvertimeHours === 'number' && customOvertimeHours > 0) {
+        overtimeHours = Math.min(totalNetHours, customOvertimeHours);
+        regularHours = Math.max(0, Math.round((totalNetHours - overtimeHours) * 10) / 10);
+      } else if (totalNetHours > 8) {
+        regularHours = 8;
+        overtimeHours = Math.round((totalNetHours - 8) * 10) / 10;
+      } else {
+        // Entire shift marked as dedicated overtime (e.g. emergency evening callout)
+        regularHours = 0;
+        overtimeHours = totalNetHours;
+      }
     }
 
     return { totalNetHours, regularHours, overtimeHours };
-  }, [startTime, endTime, breakMinutes, enableOvertimeCalc]);
+  }, [startTime, endTime, breakMinutes, isOvertime, customOvertimeHours]);
 
   // Compute cost for single employee
   const singleCost = useMemo(() => {
@@ -177,18 +206,32 @@ export const DailyProjectTimesheetEntry: React.FC<DailyProjectTimesheetEntryProp
       setStartTime('08:00');
       setEndTime('17:00');
       setBreakMinutes(60);
+      setIsOvertime(false);
+      setCustomOvertimeHours('');
     } else if (preset === 'half') {
       setStartTime('08:00');
       setEndTime('12:00');
       setBreakMinutes(0);
+      setIsOvertime(false);
+      setCustomOvertimeHours('');
     } else if (preset === 'overtime') {
       setStartTime('08:00');
       setEndTime('19:00');
       setBreakMinutes(60);
+      setIsOvertime(true);
+      setCustomOvertimeHours(2);
+      if (!overtimeReason) {
+        setOvertimeReason(isAr ? 'تمديد وردية لاستعجال تسليم المشروع للعميل' : 'Shift extension for urgent client delivery');
+      }
     } else if (preset === 'emergency') {
       setStartTime('17:00');
       setEndTime('21:00');
       setBreakMinutes(0);
+      setIsOvertime(true);
+      setCustomOvertimeHours(4);
+      if (!overtimeReason) {
+        setOvertimeReason(isAr ? 'أعمال طوارئ وتدخل ميداني مسائي عاجل' : 'Emergency & urgent evening site intervention');
+      }
     }
   };
 
@@ -228,6 +271,8 @@ export const DailyProjectTimesheetEntry: React.FC<DailyProjectTimesheetEntryProp
         hoursWorked: timeBreakdown.totalNetHours,
         regularHours: timeBreakdown.regularHours,
         overtimeHours: timeBreakdown.overtimeHours,
+        isOvertime,
+        overtimeReason: isOvertime ? (overtimeReason.trim() || (isAr ? 'ساعات عمل إضافية معتمدة' : 'Approved overtime hours')) : undefined,
         hourlyRate: effectiveRateSingle,
         overtimeMultiplier,
         monthlySalarySar: monthlySalaryBasis > 0 ? monthlySalaryBasis : undefined,
@@ -262,6 +307,8 @@ export const DailyProjectTimesheetEntry: React.FC<DailyProjectTimesheetEntryProp
           hoursWorked: timeBreakdown.totalNetHours,
           regularHours: timeBreakdown.regularHours,
           overtimeHours: timeBreakdown.overtimeHours,
+          isOvertime,
+          overtimeReason: isOvertime ? (overtimeReason.trim() || (isAr ? 'ساعات عمل إضافية معتمدة' : 'Approved overtime hours')) : undefined,
           hourlyRate: rate,
           overtimeMultiplier,
           totalCost: total,
@@ -503,50 +550,123 @@ export const DailyProjectTimesheetEntry: React.FC<DailyProjectTimesheetEntryProp
           </div>
         </div>
 
-        {/* Overtime & Rate Customization Details */}
-        <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="check-overtime"
-                checked={enableOvertimeCalc}
-                onChange={(e) => setEnableOvertimeCalc(e.target.checked)}
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-              />
-              <label htmlFor="check-overtime" className="font-bold text-indigo-950 cursor-pointer">
-                {isAr ? 'تفعيل احتساب الساعات الإضافية تلقائياً (فوق 8 ساعات)' : 'Auto Overtime for > 8h'}
+        {/* Overtime Toggle & Overtime Reason Details */}
+        <div className={`p-3.5 rounded-xl border transition-all ${
+          isOvertime 
+            ? 'bg-amber-50/80 border-amber-300 shadow-2xs' 
+            : 'bg-slate-50/80 border-slate-200'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Overtime Toggle */}
+            <div className="flex items-center gap-2.5">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="toggle-is-overtime"
+                  checked={isOvertime}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsOvertime(checked);
+                    if (checked && !overtimeReason) {
+                      setOvertimeReason(isAr ? 'استعجال تسليم المشروع للعميل' : 'Urgent client handover deadline');
+                    }
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-10 h-5 bg-slate-300 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
               </label>
+              <div>
+                <label htmlFor="toggle-is-overtime" className="font-bold text-xs text-slate-900 cursor-pointer flex items-center gap-1.5">
+                  <Clock className={`w-4 h-4 ${isOvertime ? 'text-amber-600' : 'text-slate-400'}`} />
+                  <span>{isAr ? 'احتساب عمل إضافي (Overtime Toggle)' : 'Overtime Hours Toggle'}</span>
+                  {isOvertime && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-extrabold">
+                      {isAr ? 'مفعل' : 'Active'}
+                    </span>
+                  )}
+                </label>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {isAr 
+                    ? 'تفعيل الساعات الإضافية لتسجيل وتوثيق مبرر العمل الإضافي واحتساب الأجر بمعامل الإضافي' 
+                    : 'Enable extra hours calculation with mandatory overtime reason and rate multiplier'}
+                </p>
+              </div>
             </div>
 
-            {enableOvertimeCalc && (
-              <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                <span className="text-[11px] text-slate-600 font-medium">
-                  {isAr ? 'معامل الإضافي:' : 'OT Multiplier:'}
+            {/* Overtime Multiplier */}
+            {isOvertime && (
+              <div className="flex items-center gap-1.5 self-end sm:self-auto bg-white/80 px-2.5 py-1.5 rounded-lg border border-amber-200 shadow-2xs">
+                <span className="text-[11px] text-amber-900 font-bold">
+                  {isAr ? 'معامل الأجر الإضافي:' : 'OT Multiplier:'}
                 </span>
                 <select
                   value={overtimeMultiplier}
                   onChange={(e) => setOvertimeMultiplier(parseFloat(e.target.value))}
-                  className="bg-white px-2 py-0.5 rounded border border-indigo-200 text-xs font-bold text-indigo-900"
+                  className="bg-amber-50 px-2 py-0.5 rounded border border-amber-300 text-xs font-black text-amber-950 focus:outline-hidden"
                 >
-                  <option value={1.5}>1.5× {isAr ? '(نظام العمل القياسي)' : '(Standard)'}</option>
-                  <option value={1.25}>1.25×</option>
-                  <option value={2.0}>2.0× {isAr ? '(عطلات وأعياد)' : '(Holidays)'}</option>
+                  <option value={1.5}>1.5× {isAr ? '(نظام العمل القياسي)' : '(1.5x Standard)'}</option>
+                  <option value={1.25}>1.25× {isAr ? '(مخفف)' : '(1.25x)'}</option>
+                  <option value={2.0}>2.0× {isAr ? '(عطلات ومناسبات)' : '(2.0x Holidays)'}</option>
                 </select>
               </div>
             )}
           </div>
 
+          {/* Overtime Reason Field (Mandatory / Detailed when Overtime is Enabled) */}
+          {isOvertime && (
+            <div className="pt-2.5 border-t border-amber-200/80 space-y-2 animate-in fade-in-50 duration-150">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  <span>{isAr ? 'سبب ومبرر الساعات الإضافية (Overtime Reason) *' : 'Overtime Reason & Justification *'}</span>
+                </label>
+                <span className="text-[10px] text-amber-800 font-medium">
+                  {isAr ? 'مطلوب لاعتماد تكلفة الأجور الإضافية' : 'Required for cost center audit'}
+                </span>
+              </div>
+
+              <input
+                type="text"
+                required={isOvertime}
+                value={overtimeReason}
+                onChange={(e) => setOvertimeReason(e.target.value)}
+                placeholder={isAr ? 'مثال: استعجال تسليم المشروع للعميل أو تأخر الأعمال المدنية...' : 'e.g. Urgent client handover deadline or civil works delay...'}
+                className="w-full text-xs p-2.5 rounded-lg border border-amber-300 bg-white font-medium text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+              />
+
+              {/* Fast Overtime Reason Presets */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                <span className="text-[10px] text-amber-900/80 font-bold">
+                  {isAr ? 'أسباب شائعة سريعة:' : 'Quick Presets:'}
+                </span>
+                {(isAr ? OVERTIME_REASON_PRESETS_AR : OVERTIME_REASON_PRESETS_EN).map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => setOvertimeReason(reason)}
+                    className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                      overtimeReason === reason
+                        ? 'bg-amber-600 text-white border-amber-700 font-bold shadow-2xs'
+                        : 'bg-white text-amber-900 border-amber-200 hover:bg-amber-100 hover:border-amber-300'
+                    }`}
+                  >
+                    + {reason}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Time & Overtime Visual readout */}
-          <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] pt-1 border-t border-indigo-100 text-indigo-900">
+          <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] pt-2 border-t border-slate-200/60 text-slate-700">
             <div className="flex items-center gap-3">
               <span>
                 {isAr ? 'صافي وقت العمل:' : 'Net Hours:'}{' '}
-                <strong className="text-sm font-black">{timeBreakdown.totalNetHours} {isAr ? 'ساعة' : 'hrs'}</strong>
+                <strong className="text-sm font-black text-slate-900">{timeBreakdown.totalNetHours} {isAr ? 'ساعة' : 'hrs'}</strong>
               </span>
               <span>
                 ({timeBreakdown.regularHours} {isAr ? 'ساعات أساسية' : 'reg'} +{' '}
-                <span className={timeBreakdown.overtimeHours > 0 ? 'font-bold text-amber-700' : ''}>
+                <span className={timeBreakdown.overtimeHours > 0 ? 'font-bold text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded' : ''}>
                   {timeBreakdown.overtimeHours} {isAr ? 'ساعات إضافية' : 'OT'}
                 </span>)
               </span>

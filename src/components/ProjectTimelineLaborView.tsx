@@ -39,6 +39,7 @@ import {
 import { Employee } from '../types/employee';
 import { SaudiRiyalSymbol } from './SaudiRiyalSymbol';
 import { DailyProjectTimesheetEntry } from './DailyProjectTimesheetEntry';
+import { ProjectTimesheetTab } from './ProjectTimesheetTab';
 
 interface Props {
   spec: ElevatorSpecification;
@@ -258,6 +259,9 @@ export const ProjectTimelineLaborView: React.FC<Props> = ({
     });
   }, [laborLogs, filterEmployeeId, filterMilestone]);
 
+  // Sub-view Switcher: Milestones & Timeline vs Detailed Timesheet Tab
+  const [activeSubView, setActiveSubView] = useState<'timeline' | 'timesheet'>('timeline');
+
   // Financial Margins Integration
   const contractPrice = spec.totalQuotationPrice || 0;
   const materialCost = spec.subtotalCost || 0;
@@ -266,6 +270,50 @@ export const ProjectTimelineLaborView: React.FC<Props> = ({
 
   return (
     <div className="space-y-6" dir={isAr ? 'rtl' : 'ltr'}>
+      {/* Sub-view Switcher Bar */}
+      <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveSubView('timeline')}
+          className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeSubView === 'timeline'
+              ? 'bg-white text-indigo-950 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Layers className="w-4 h-4 text-indigo-600" />
+          <span>{isAr ? 'المسار الزمني ومراحل المشروع' : 'Project Milestones & Timeline'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubView('timesheet')}
+          className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeSubView === 'timesheet'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Clock className="w-4 h-4 text-emerald-300" />
+          <span>{isAr ? 'سجلات دوام وتكاليف العمالة الميدانية' : 'Timesheet Logs & Labor Costs'}</span>
+          {laborLogs.length > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+              activeSubView === 'timesheet' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              {laborLogs.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeSubView === 'timesheet' ? (
+        <ProjectTimesheetTab
+          spec={spec}
+          employees={employees}
+          language={language}
+          onUpdateSpec={onUpdateSpec}
+        />
+      ) : (
+        <>
       {/* ========================================================================= */}
       {/* SECTION 1: SIMPLIFIED, EASY-TO-USE PROJECT MILESTONES TRACKER             */}
       {/* ========================================================================= */}
@@ -910,6 +958,8 @@ export const ProjectTimelineLaborView: React.FC<Props> = ({
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

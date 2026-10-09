@@ -64,6 +64,8 @@ import { AppLanguage, TRANSLATIONS } from '../utils/translations';
 import { ProjectTimeline } from './ProjectTimeline';
 import { ProjectTimelineProgressBar } from './ProjectTimelineProgressBar';
 import { ProjectTimelineLaborView } from './ProjectTimelineLaborView';
+import { ProjectTimesheetTab } from './ProjectTimesheetTab';
+import { ArchitecturalImageCard } from './ArchitecturalImageCard';
 import { SearchableSelect } from './SearchableSelect';
 
 interface Props {
@@ -81,7 +83,7 @@ interface Props {
   onAddCustomer?: (customerData: Omit<Customer, 'id' | 'createdAt'>) => Customer | void;
 }
 
-type WizardTab = 'PROJECT' | 'TECHNICAL' | 'SHAFT_CABIN' | 'FINISHES' | 'OPTIONS' | 'COMMERCIAL' | 'TIMELINE';
+type WizardTab = 'PROJECT' | 'TECHNICAL' | 'SHAFT_CABIN' | 'FINISHES' | 'OPTIONS' | 'COMMERCIAL' | 'TIMELINE' | 'TIMESHEET';
 
 export const QuotationWizard: React.FC<Props> = ({
   spec,
@@ -495,6 +497,25 @@ export const QuotationWizard: React.FC<Props> = ({
           >
             <Clock className="w-4 h-4 text-amber-300" />
             {isAr ? '7. المسار الزمني وتكلفة العمالة' : '7. Timeline & Labor Cost'}
+            {spec.laborLogs && spec.laborLogs.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/20 text-white">
+                {spec.laborLogs.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            id="tab-step-timesheet"
+            type="button"
+            onClick={() => setActiveTab('TIMESHEET')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+              activeTab === 'TIMESHEET'
+                ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-emerald-900 hover:bg-slate-100'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-emerald-300" />
+            {isAr ? '8. سجلات دوام وتكاليف العمالة' : '8. Project Timesheet Logs'}
             {spec.laborLogs && spec.laborLogs.length > 0 && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/20 text-white">
                 {spec.laborLogs.length}
@@ -1294,6 +1315,13 @@ export const QuotationWizard: React.FC<Props> = ({
                 </button>
               </div>
 
+              {/* 3D Architectural Visualizer Card (Imagen AI) */}
+              <ArchitecturalImageCard
+                spec={spec}
+                onUpdateSpec={onUpdateSpec}
+                language={isAr ? 'ar' : 'en'}
+              />
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 {/* Shaft Width */}
                 <div>
@@ -1502,6 +1530,13 @@ export const QuotationWizard: React.FC<Props> = ({
                   Select wall cladding, ceiling lighting, flooring materials, and car operating panel (COP) options.
                 </p>
               </div>
+
+              {/* 3D Architectural Visualizer Card (Imagen AI) */}
+              <ArchitecturalImageCard
+                spec={spec}
+                onUpdateSpec={onUpdateSpec}
+                language={isAr ? 'ar' : 'en'}
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
@@ -1951,6 +1986,18 @@ export const QuotationWizard: React.FC<Props> = ({
             />
           )}
 
+          {/* ============================================================ */}
+          {/* TAB 8: PROJECT EMPLOYEE TIMESHEET & LABOR COST CENTER        */}
+          {/* ============================================================ */}
+          {activeTab === 'TIMESHEET' && (
+            <ProjectTimesheetTab
+              spec={spec}
+              employees={employees}
+              language={isAr ? 'ar' : 'en'}
+              onUpdateSpec={onUpdateSpec}
+            />
+          )}
+
           {/* Wizard Navigation Footer */}
           <div className="flex items-center justify-between pt-6 mt-6 border-t border-slate-100 gap-3">
             <button
@@ -1958,7 +2005,7 @@ export const QuotationWizard: React.FC<Props> = ({
               type="button"
               disabled={activeTab === 'PROJECT'}
               onClick={() => {
-                const tabs: WizardTab[] = ['PROJECT', 'TECHNICAL', 'SHAFT_CABIN', 'FINISHES', 'OPTIONS', 'COMMERCIAL', 'TIMELINE'];
+                const tabs: WizardTab[] = ['PROJECT', 'TECHNICAL', 'SHAFT_CABIN', 'FINISHES', 'OPTIONS', 'COMMERCIAL', 'TIMELINE', 'TIMESHEET'];
                 const idx = tabs.indexOf(activeTab);
                 if (idx > 0) setActiveTab(tabs[idx - 1]);
               }}
@@ -1975,7 +2022,7 @@ export const QuotationWizard: React.FC<Props> = ({
               id="btn-wizard-next-step"
               type="button"
               onClick={() => {
-                const tabs: WizardTab[] = ['PROJECT', 'TECHNICAL', 'SHAFT_CABIN', 'FINISHES', 'OPTIONS', 'COMMERCIAL', 'TIMELINE'];
+                const tabs: WizardTab[] = ['PROJECT', 'TECHNICAL', 'SHAFT_CABIN', 'FINISHES', 'OPTIONS', 'COMMERCIAL', 'TIMELINE', 'TIMESHEET'];
                 const idx = tabs.indexOf(activeTab);
                 if (idx < tabs.length - 1) {
                   setActiveTab(tabs[idx + 1]);
@@ -1985,7 +2032,7 @@ export const QuotationWizard: React.FC<Props> = ({
               }}
               className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
             >
-              {activeTab === 'TIMELINE' ? (
+              {activeTab === 'TIMESHEET' ? (
                 <>
                   <span>{isAr ? 'عرض مخططات CAD' : 'View CAD Drawings'}</span>
                   <Layers className="w-3.5 h-3.5" />

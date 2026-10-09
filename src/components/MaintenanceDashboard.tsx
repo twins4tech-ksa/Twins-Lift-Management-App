@@ -199,25 +199,6 @@ export default function MaintenanceDashboard({
     onSaveContract(duplicate);
   };
 
-  // If currently in Editor mode, render the editor!
-  if (editingContract) {
-    return (
-      <MaintenanceContractEditor
-        contract={editingContract}
-        customers={customers}
-        projects={projects}
-        employees={employees}
-        companySettings={companySettings}
-        language={language}
-        onSave={(updated) => {
-          onSaveContract(updated);
-          setEditingContract(null);
-        }}
-        onCancel={() => setEditingContract(null)}
-      />
-    );
-  }
-
   // Filter calculations
   const filteredContracts = contracts.filter((c) => {
     // Type tab filter
@@ -560,6 +541,25 @@ export default function MaintenanceDashboard({
     data: filteredContracts,
     isAr,
   });
+
+  // If currently in Editor mode, render the editor after all hooks have executed
+  if (editingContract) {
+    return (
+      <MaintenanceContractEditor
+        contract={editingContract}
+        customers={customers}
+        projects={projects}
+        employees={employees}
+        companySettings={companySettings}
+        language={language}
+        onSave={(updated) => {
+          onSaveContract(updated);
+          setEditingContract(null);
+        }}
+        onCancel={() => setEditingContract(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 pb-12" dir={isAr ? 'rtl' : 'ltr'}>

@@ -42,24 +42,23 @@ export const RenewalQuotationEmailModal: React.FC<RenewalQuotationEmailModalProp
   onRenewInSystem,
   onShowToast,
 }) => {
-  if (!isOpen || !contract) return null;
-
   const isInitialAr = language === 'ar';
   const [templateLang, setTemplateLang] = useState<AppLanguage>(language);
   const isAr = templateLang === 'ar';
 
-  const [customPrice, setCustomPrice] = useState<number>(contract.totalPrice || 12000);
-  const [recipientEmail, setRecipientEmail] = useState<string>(contract.customerEmail || '');
+  const [customPrice, setCustomPrice] = useState<number>(contract?.totalPrice || 12000);
+  const [recipientEmail, setRecipientEmail] = useState<string>(contract?.customerEmail || '');
   const [ccEmail, setCcEmail] = useState<string>(companySettings.email || 'info@twins4tech.com');
   const [copied, setCopied] = useState<boolean>(false);
   const [isEditingCustomBody, setIsEditingCustomBody] = useState<boolean>(false);
 
   // Expiry calculation
-  const expiryInfo = getContractExpiryInfo(contract, 30);
+  const expiryInfo = contract ? getContractExpiryInfo(contract, 30) : null;
   const diffDays = expiryInfo?.diffDays ?? 30;
 
   // Base renewal template calculation
   const baseEmail = useMemo(() => {
+    if (!contract) return { subject: '', body: '' };
     return generateRenewalEmail(contract, companySettings, templateLang, customPrice);
   }, [contract, companySettings, templateLang, customPrice]);
 
@@ -76,9 +75,13 @@ export const RenewalQuotationEmailModal: React.FC<RenewalQuotationEmailModalProp
 
   // Recipient sync if contract changes
   React.useEffect(() => {
-    setRecipientEmail(contract.customerEmail || '');
-    setCustomPrice(contract.totalPrice || 12000);
+    if (contract) {
+      setRecipientEmail(contract.customerEmail || '');
+      setCustomPrice(contract.totalPrice || 12000);
+    }
   }, [contract]);
+
+  if (!isOpen || !contract) return null;
 
   const { startDate: renewalStart, endDate: renewalEnd, renewalYear } = getRenewalPeriod(contract.endDate);
 

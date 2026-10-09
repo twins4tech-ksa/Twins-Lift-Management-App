@@ -141,6 +141,7 @@ interface MapDashboardViewProps {
   onSelectProject?: (project: ElevatorSpecification) => void;
   onSelectContract?: (contract: MaintenanceContract) => void;
   onAssignTechnician?: (breakdownId: string, technicianId: string) => void;
+  onOpenRescueConsole?: (breakdown?: MaintenanceBreakdown) => void;
 }
 
 // Map bounds updater component
@@ -240,7 +241,8 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
   language,
   onSelectProject,
   onSelectContract,
-  onAssignTechnician = () => {}
+  onAssignTechnician = () => {},
+  onOpenRescueConsole
 }) => {
   const isAr = language === 'ar';
   
@@ -691,6 +693,18 @@ export const MapDashboardView: React.FC<MapDashboardViewProps> = ({
               <div className="text-rose-800 font-semibold text-[11px] bg-white p-2 rounded border border-rose-200 mt-1">
                 {selectedBreakdownForDispatch.description}
               </div>
+
+              {/* Dedicated Emergency Rescue Console Trigger */}
+              {onOpenRescueConsole && (
+                <button
+                  type="button"
+                  onClick={() => onOpenRescueConsole(selectedBreakdownForDispatch.originalData)}
+                  className="w-full mt-2.5 py-2 px-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 animate-pulse"
+                >
+                  <AlertTriangle className="w-4 h-4 text-white" />
+                  <span>{isAr ? 'غرفة عمليات الإنقاذ وإدارة الطوارئ SOS' : 'Launch Emergency Rescue Console'}</span>
+                </button>
+              )}
             </div>
 
             {/* List of nearest technicians sorted by km */}

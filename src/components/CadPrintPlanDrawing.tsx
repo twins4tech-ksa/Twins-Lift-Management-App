@@ -563,71 +563,93 @@ export const CadPrintPlanDrawing: React.FC<Props> = ({
         {/* ========================================================================= */}
         {/* DIMENSION LINES & BADGES                                                  */}
         {/* ========================================================================= */}
-        {/* 1. SHAFT WIDTH (SW) TOP */}
+        {/* 1. SHAFT WIDTH (SW) OUTSIDE TOP */}
         <line
           x1={shaftX}
-          y1={shaftY - 30}
+          y1={shaftY - 50}
           x2={shaftX + shaftSvgW}
-          y2={shaftY - 30}
+          y2={shaftY - 50}
           stroke="#0284c7"
           strokeWidth="1.5"
           markerStart="url(#arrow-blue-start)"
           markerEnd="url(#arrow-blue-end)"
         />
-        <line x1={shaftX} y1={shaftY - 35} x2={shaftX} y2={shaftY} stroke="#0284c7" strokeWidth="0.8" strokeDasharray="3 3" />
-        <line x1={shaftX + shaftSvgW} y1={shaftY - 35} x2={shaftX + shaftSvgW} y2={shaftY} stroke="#0284c7" strokeWidth="0.8" strokeDasharray="3 3" />
-        <rect x={shaftX + shaftSvgW / 2 - 75} y={shaftY - 46} width="150" height="22" fill="#0284c7" rx="4" />
-        <text x={shaftX + shaftSvgW / 2} y={shaftY - 31} fill="#ffffff" fontSize="11" fontWeight="bold" textAnchor="middle" direction="ltr">
-          عرض البئر W = {SW} mm
+        <line x1={shaftX} y1={shaftY - 58} x2={shaftX} y2={shaftY} stroke="#0284c7" strokeWidth="0.8" strokeDasharray="3 3" />
+        <line x1={shaftX + shaftSvgW} y1={shaftY - 58} x2={shaftX + shaftSvgW} y2={shaftY} stroke="#0284c7" strokeWidth="0.8" strokeDasharray="3 3" />
+        <rect x={shaftX + shaftSvgW / 2 - 75} y={shaftY - 61} width="150" height="22" fill="#0284c7" rx="4" />
+        <text x={shaftX + shaftSvgW / 2} y={shaftY - 46} fill="#ffffff" fontSize="11" fontWeight="bold" textAnchor="middle" direction="ltr">
+          عرض البئر SW = {SW} mm
         </text>
 
-        {/* 2. SHAFT DEPTH (SD) LEFT */}
+        {/* 2. SHAFT DEPTH (SD) OUTSIDE LEFT - ORIENTED ALONG THE DEPTH AXIS LIKE CABIN */}
         <line
-          x1={shaftX - 30}
+          x1={shaftX - 50}
           y1={shaftY}
-          x2={shaftX - 30}
+          x2={shaftX - 50}
           y2={shaftY + shaftSvgH}
           stroke="#0284c7"
           strokeWidth="1.5"
           markerStart="url(#arrow-blue-start)"
           markerEnd="url(#arrow-blue-end)"
         />
-        <line x1={shaftX - 35} y1={shaftY} x2={shaftX} y2={shaftY} stroke="#0284c7" strokeWidth="0.8" strokeDasharray="3 3" />
-        <line x1={shaftX - 35} y1={shaftY + shaftSvgH} x2={shaftX} y2={shaftY + shaftSvgH} stroke="#0284c7" strokeWidth="0.8" strokeDasharray="3 3" />
-        <rect x={shaftX - 95} y={shaftY + shaftSvgH / 2 - 11} width="130" height="22" fill="#0284c7" rx="4" />
-        <text x={shaftX - 30} y={shaftY + shaftSvgH / 2 + 4} fill="#ffffff" fontSize="11" fontWeight="bold" textAnchor="middle" direction="ltr">
-          عمق SD = {SD} mm
+        <line x1={shaftX - 58} y1={shaftY} x2={shaftX} y2={shaftY} stroke="#0284c7" strokeWidth="0.8" strokeDasharray="3 3" />
+        <line x1={shaftX - 58} y1={shaftY + shaftSvgH} x2={shaftX} y2={shaftY + shaftSvgH} stroke="#0284c7" strokeWidth="0.8" strokeDasharray="3 3" />
+        <rect x={shaftX - 61} y={shaftY + shaftSvgH / 2 - 65} width="22" height="130" fill="#0284c7" rx="4" />
+        <text
+          x={shaftX - 50}
+          y={shaftY + shaftSvgH / 2 + 4}
+          transform={`rotate(-90 ${shaftX - 50} ${shaftY + shaftSvgH / 2})`}
+          fill="#ffffff"
+          fontSize="11"
+          fontWeight="bold"
+          textAnchor="middle"
+          direction="ltr"
+        >
+          عمق البئر SD = {SD} mm
         </text>
 
-        {/* 3. CABIN WIDTH (CW) INSIDE/TOP */}
+        {/* 3. CABIN WIDTH (CW) INSIDE CABIN */}
+        <line x1={carSvgX + 6} y1={carSvgY + 16} x2={carSvgX + 6} y2={carSvgY + 32} stroke="#16a34a" strokeWidth="0.8" />
+        <line x1={carSvgX + carSvgW - 6} y1={carSvgY + 16} x2={carSvgX + carSvgW - 6} y2={carSvgY + 32} stroke="#16a34a" strokeWidth="0.8" />
         <line
-          x1={carSvgX}
-          y1={carSvgY - 12}
-          x2={carSvgX + carSvgW}
-          y2={carSvgY - 12}
+          x1={carSvgX + 6}
+          y1={carSvgY + 24}
+          x2={carSvgX + carSvgW - 6}
+          y2={carSvgY + 24}
           stroke="#16a34a"
           strokeWidth="1.4"
           markerStart="url(#arrow-green-start)"
           markerEnd="url(#arrow-green-end)"
         />
-        <rect x={carSvgX + carSvgW / 2 - 48} y={carSvgY - 21} width="96" height="18" fill="#16a34a" rx="3" />
-        <text x={carSvgX + carSvgW / 2} y={carSvgY - 8} fill="#ffffff" fontSize="9.5" fontWeight="bold" textAnchor="middle" direction="ltr">
+        <rect x={carSvgX + carSvgW / 2 - 48} y={carSvgY + 15} width="96" height="18" fill="#16a34a" rx="3" />
+        <text x={carSvgX + carSvgW / 2} y={carSvgY + 28} fill="#ffffff" fontSize="9.5" fontWeight="bold" textAnchor="middle" direction="ltr">
           CW = {CW} mm
         </text>
 
-        {/* 4. CABIN DEPTH (CD) RIGHT */}
+        {/* 4. CABIN DEPTH (CD) INSIDE CABIN */}
+        <line x1={carSvgX + carSvgW - 33} y1={carSvgY + 6} x2={carSvgX + carSvgW - 17} y2={carSvgY + 6} stroke="#16a34a" strokeWidth="0.8" />
+        <line x1={carSvgX + carSvgW - 33} y1={carSvgY + carSvgH - 6} x2={carSvgX + carSvgW - 17} y2={carSvgY + carSvgH - 6} stroke="#16a34a" strokeWidth="0.8" />
         <line
-          x1={carSvgX + carSvgW + 15}
-          y1={carSvgY}
-          x2={carSvgX + carSvgW + 15}
-          y2={carSvgY + carSvgH}
+          x1={carSvgX + carSvgW - 25}
+          y1={carSvgY + 6}
+          x2={carSvgX + carSvgW - 25}
+          y2={carSvgY + carSvgH - 6}
           stroke="#16a34a"
           strokeWidth="1.4"
           markerStart="url(#arrow-green-start)"
           markerEnd="url(#arrow-green-end)"
         />
-        <rect x={carSvgX + carSvgW + 17} y={carSvgY + carSvgH / 2 - 10} width="86" height="18" fill="#16a34a" rx="3" />
-        <text x={carSvgX + carSvgW + 60} y={carSvgY + carSvgH / 2 + 3} fill="#ffffff" fontSize="9.5" fontWeight="bold" textAnchor="middle" direction="ltr">
+        <rect x={carSvgX + carSvgW - 34} y={carSvgY + carSvgH / 2 - 43} width="18" height="86" fill="#16a34a" rx="3" />
+        <text
+          x={carSvgX + carSvgW - 25}
+          y={carSvgY + carSvgH / 2 + 3.5}
+          transform={`rotate(-90 ${carSvgX + carSvgW - 25} ${carSvgY + carSvgH / 2})`}
+          fill="#ffffff"
+          fontSize="9.5"
+          fontWeight="bold"
+          textAnchor="middle"
+          direction="ltr"
+        >
           CD = {CD} mm
         </text>
 

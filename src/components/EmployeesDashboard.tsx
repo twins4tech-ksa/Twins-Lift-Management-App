@@ -86,6 +86,11 @@ import { InteractiveTableHeader, TableControlBar } from './InteractiveTableHeade
 import { UserProfile, UserPortalRole, ROLE_PRIVILEGES_MAP } from '../types/portal';
 import { Employee30DayTrendChart } from './Employee30DayTrendChart';
 import { SendWhatsAppModal } from './SendWhatsAppModal';
+import { EmployeeKpiAnalyticsDashboard } from './EmployeeKpiAnalyticsDashboard';
+import { 
+  calculateTechniciansResolutionMetrics, 
+  TechnicianResolutionMetrics 
+} from '../utils/technicianResolutionAnalytics';
 
 interface EmployeesDashboardProps {
   employees: Employee[];
@@ -126,8 +131,8 @@ export default function EmployeesDashboard({
 }: EmployeesDashboardProps) {
   const isAr = language === 'ar';
 
-  // Section switcher: Staff directory vs Attendance GPS logs vs KPI Dashboard vs Reports vs Permissions
-  const [activeSection, setActiveSection] = useState<'STAFF' | 'ATTENDANCE_LOGS' | 'KPI_DASHBOARD' | 'REPORTS' | 'PERMISSIONS'>('STAFF');
+  // Section switcher: Staff directory vs Attendance GPS logs vs KPI Analytics vs KPI Dashboard vs Reports vs Permissions
+  const [activeSection, setActiveSection] = useState<'STAFF' | 'ATTENDANCE_LOGS' | 'KPI_ANALYTICS' | 'KPI_DASHBOARD' | 'REPORTS' | 'PERMISSIONS'>('STAFF');
 
   // Manual Attendance Wizard state
   const [isManualAttendanceOpen, setIsManualAttendanceOpen] = useState(false);
@@ -176,6 +181,7 @@ export default function EmployeesDashboard({
   // KPI Period filter state (قياس هذا شهرياً: 12 زيارة صيانة يومياً و 5 أعطال يومياً)
   const [kpiMonth, setKpiMonth] = useState<string>(() => new Date().toISOString().slice(0, 7)); // e.g. "2026-09"
   const [kpiWorkingDays, setKpiWorkingDays] = useState<number>(DEFAULT_WORKING_DAYS_PER_MONTH);
+  const [kpiViewMode, setKpiViewMode] = useState<'BOTH' | 'TABLE' | 'CARDS'>('BOTH');
 
   // Filters state
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('ALL');
@@ -308,6 +314,21 @@ export default function EmployeesDashboard({
       kpiWorkingDays
     );
   }, [employees, maintenanceContracts, breakdowns, kpiMonth, kpiWorkingDays]);
+
+  // تحليلات سرعة الإنجاز في الوقت المحدد والأعطال المتكررة لنفس المصعد استناداً لسجلات الإنجاز
+  const techResolutionMap = useMemo(() => {
+    const overview = calculateTechniciansResolutionMetrics(
+      employees,
+      breakdowns,
+      maintenanceContracts,
+      'ALL'
+    );
+    const map: Record<string, TechnicianResolutionMetrics> = {};
+    overview.techniciansMetrics.forEach((tm) => {
+      map[tm.technicianId] = tm;
+    });
+    return map;
+  }, [employees, breakdowns, maintenanceContracts]);
 
   // Filtered employees
   const filteredEmployees = useMemo(() => {
@@ -546,6 +567,90 @@ export default function EmployeesDashboard({
       },
     },
     {
+      id: 'on_time_completion_rate',
+      header: isAr ? 'معدل الإنجاز في الوقت المحدد' : 'On-Time Rate',
+      headerAr: 'معدل الإنجاز في الوقت المحدد',
+      headerEn: 'On-Time Completion Rate',
+      sortable: true,
+      accessor: (emp) => techResolutionMap[emp.id]?.onTimeCompletionRatePct ?? 100,
+      renderCell: (emp) => {
+        if (emp.role === 'MAINTENANCE_TECH') {
+          const techRes = techResolutionMap[emp.id];
+          const total = techRes?.totalResolvedBreakdowns || 0;
+          const onTime = techRes?.onTimeResolvedCount || 0;
+          const rate = techRes ? techRes.onTimeCompletionRatePct : 100;
+          return (
+            <div className="font-mono text-xs space-y-0.5">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                    rate >= 90
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : rate >= 75
+                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                  }`}
+                >
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span>{rate}%</span>
+                </span>
+                {total > 0 && rate >= 90 && (
+                  <span title={isAr ? 'ملتزم باتفاقية مستوى الخدمة القياسية' : 'SLA Met'}>⚡</span>
+                )}
+              </div>
+              <span className="text-[10px] text-slate-500 block font-sans">
+                {total > 0
+                  ? (isAr ? `${onTime} من ${total} بالموعد` : `${onTime}/${total} on-time`)
+                  : (isAr ? 'لا توجد بلاغات مسندة' : 'No tickets')}
+              </span>
+            </div>
+          );
+        }
+        return <span className="text-slate-400 text-xs">-</span>;
+      },
+    },
+    {
+      id: 'repeated_elevator_breakdowns',
+      header: isAr ? 'عدد الأعطال المتكررة لنفس المصعد' : 'Repeated Faults (Same Lift)',
+      headerAr: 'عدد الأعطال المتكررة لنفس المصعد',
+      headerEn: 'Repeated Elevator Breakdowns',
+      sortable: true,
+      accessor: (emp) => techResolutionMap[emp.id]?.repeatedBreakdownsCount ?? 0,
+      renderCell: (emp) => {
+        if (emp.role === 'MAINTENANCE_TECH') {
+          const techRes = techResolutionMap[emp.id];
+          const count = techRes?.repeatedBreakdownsCount || 0;
+          const liftsCount = techRes?.repeatedElevatorsCount || 0;
+          const liftsList = techRes?.repeatedElevatorsList || [];
+
+          if (count === 0) {
+            return (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-50 text-slate-700 border border-slate-200">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>{isAr ? '0 (لا تكرار 🟢)' : '0 (None 🟢)'}</span>
+              </span>
+            );
+          }
+
+          return (
+            <div className="space-y-0.5 max-w-[150px]">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
+                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                <span>{isAr ? `${count} أعطال متكررة` : `${count} repeat`}</span>
+              </span>
+              <span
+                className="text-[10px] text-amber-800 block truncate font-sans"
+                title={liftsList.map((l) => `${l.elevatorName} (${l.elevatorNumber}): ${l.breakdownsCount} بلاغات`).join('\n')}
+              >
+                {isAr ? `تكرر في ${liftsCount} مصعد` : `in ${liftsCount} lifts`}
+              </span>
+            </div>
+          );
+        }
+        return <span className="text-slate-400 text-xs">-</span>;
+      },
+    },
+    {
       id: 'userAccount',
       header: isAr ? 'حساب المستخدم' : 'User Account',
       headerAr: 'حساب المستخدم',
@@ -652,7 +757,7 @@ export default function EmployeesDashboard({
         </div>
       ),
     },
-  ], [isAr, stats, onDeleteEmployee, onSwitchUser]);
+  ], [isAr, stats, techResolutionMap, onDeleteEmployee, onSwitchUser]);
 
   const employeesTable = useInteractiveTable({
     tableId: 'staff_employees_table',
@@ -994,8 +1099,8 @@ export default function EmployeesDashboard({
         </div>
       </div>
 
-      {/* Top Section Switcher: Staff Directory vs Site Attendance Logs vs KPI vs Reports vs Permissions */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs text-xs font-bold w-full">
+      {/* Top Section Switcher: Staff Directory vs Site Attendance Logs vs KPI Analytics vs Monthly Targets vs Reports vs Permissions */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs text-xs font-bold w-full">
         <button
           type="button"
           onClick={() => setActiveSection('STAFF')}
@@ -1007,6 +1112,22 @@ export default function EmployeesDashboard({
         >
           <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span className="truncate">{isAr ? `فريق العمل (${employees.length})` : `Staff (${employees.length})`}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('KPI_ANALYTICS')}
+          className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg transition-all cursor-pointer ${
+            activeSection === 'KPI_ANALYTICS'
+              ? 'bg-[#172033] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span className="truncate">{isAr ? 'تحليلات الأعطال و KPI' : 'MTTR & Staff KPI'}</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-emerald-500/20 text-emerald-600 font-black shrink-0">
+            {isAr ? 'جديد ⚡' : 'NEW'}
+          </span>
         </button>
 
         <button
@@ -1035,9 +1156,9 @@ export default function EmployeesDashboard({
           }`}
         >
           <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="truncate">{isAr ? 'مؤشرات الأداء KPI' : 'Monthly KPI'}</span>
+          <span className="truncate">{isAr ? 'أهداف ٥ و ١٢' : 'Monthly Targets'}</span>
           <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/20 text-amber-500 font-black shrink-0">
-            {isAr ? '٥ أعطال • ١٢ صيانة' : 'Target: 5 & 12'}
+            {isAr ? '٥ أعطال • ١٢ صيانة' : '5 & 12'}
           </span>
         </button>
 
@@ -1057,7 +1178,7 @@ export default function EmployeesDashboard({
         <button
           type="button"
           onClick={() => setActiveSection('PERMISSIONS')}
-          className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg transition-all col-span-2 lg:col-span-1 ${
+          className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg transition-all ${
             activeSection === 'PERMISSIONS'
               ? 'bg-[#172033] text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -1115,9 +1236,43 @@ export default function EmployeesDashboard({
         />
       )}
 
+      {/* KPI & BREAKDOWN RESOLUTION TIME ANALYTICS SECTION (لوحة تحليلات زمن حل الأعطال وسجلات الإنجاز وKPI الموظفين) */}
+      {activeSection === 'KPI_ANALYTICS' && (
+        <EmployeeKpiAnalyticsDashboard
+          employees={employees}
+          breakdowns={breakdowns}
+          contracts={maintenanceContracts}
+          projects={projects}
+          attendanceRecords={attendanceRecords}
+          companySettings={companySettings}
+          language={language}
+          onSelectEmployee={(emp) => {
+            setViewingEmployee(emp);
+          }}
+        />
+      )}
+
       {/* KPI DASHBOARD SECTION (قياس شهرياً لمستهدف 5 أعطال يومياً و 12 زيارة صيانة يومياً وما أكثر فله درجات أعلى) */}
       {activeSection === 'KPI_DASHBOARD' && (
         <div className="space-y-5 animate-fadeIn" dir={isAr ? 'rtl' : 'ltr'}>
+          {/* Quick banner linking to the detailed MTTR & Resolution Analytics Dashboard */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 p-3.5 rounded-2xl border border-amber-300/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-black shrink-0">⚡</span>
+              <div>
+                <strong className="text-slate-900 font-bold block">{isAr ? 'لوحة تحليلات زمن حل الأعطال وسجلات الإنجاز المعتمدة (MTTR)' : 'Breakdown MTTR & Completion Logs Analytics'}</strong>
+                <span className="text-slate-600 text-[11px]">{isAr ? 'عرض متوسط زمن الحل الفعلي لكل فني، سجلات الإنجاز المعتمدة، وتحليلات الـ SLA' : 'View MTTR per technician, completion logs, and SLA rates'}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveSection('KPI_ANALYTICS')}
+              className="px-3.5 py-1.5 rounded-xl bg-[#172033] hover:bg-slate-800 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs"
+            >
+              {isAr ? 'فتح لوحة تحليلات زمن الحل ⚡' : 'Open MTTR Analytics ⚡'}
+            </button>
+          </div>
+
           {/* 1. Header & Period Controls */}
           <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl border border-indigo-900/60 shadow-lg relative overflow-hidden">
             <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -1276,142 +1431,395 @@ export default function EmployeesDashboard({
             isAr={isAr}
           />
 
-          {/* 3. Detailed Technician KPI Performance Cards */}
-          <div className="space-y-3">
-            <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
-              <Target className="w-4 h-4 text-blue-600" />
-              <span>{isAr ? `نتائج وتقييم الفنيين لشهر (${kpiMonth})` : `Technicians Scorecard for (${kpiMonth})`}</span>
-            </h3>
+          {/* 3. Detailed Technician KPI Performance Table & Cards */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                    <span>{isAr ? `جدول ونتائج أداء الفنيين لشهر (${kpiMonth})` : `Technicians Performance Table & Cards (${kpiMonth})`}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
+                      {technicianKpis.length} {isAr ? 'فنيين' : 'techs'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {isAr 
+                      ? 'متابعة دقيقة لمعدل الإنجاز في الوقت المحدد، وعدد الأعطال المتكررة لنفس المصعد، ومستهدفات الصيانة والأعطال اليومية.' 
+                      : 'Track on-time completion rates, repeated elevator breakdowns, and daily breakdown/visit targets.'}
+                  </p>
+                </div>
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {technicianKpis.map((kpi) => {
-                return (
-                  <div
-                    key={kpi.technicianId}
-                    className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-3.5 relative overflow-hidden"
-                  >
-                    {/* Top Stripe: Tech Profile & Grade Badge */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-10 h-10 rounded-xl ${kpi.avatarBg || 'bg-blue-600'} text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs`}>
-                          {kpi.technicianName.charAt(0)}
+              {/* View Mode Switcher: Table vs Cards vs Both */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setKpiViewMode('TABLE')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    kpiViewMode === 'TABLE'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>{isAr ? 'عرض الجدول' : 'Table'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKpiViewMode('CARDS')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    kpiViewMode === 'CARDS'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>{isAr ? 'عرض البطاقات' : 'Cards'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKpiViewMode('BOTH')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    kpiViewMode === 'BOTH'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>{isAr ? 'كلاهما' : 'Both'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 3.1 DEDICATED EMPLOYEE PERFORMANCE TABLE (جدول أداء الموظفين) */}
+            {(kpiViewMode === 'TABLE' || kpiViewMode === 'BOTH') && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+                <div className="p-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-indigo-600" />
+                    <span className="font-bold text-slate-800 text-xs">
+                      {isAr ? 'جدول أداء الموظفين والفنيين ومعدل الإنجاز والأعطال المتكررة' : 'Staff Performance Table: On-Time Rate & Repeated Faults'}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    {isAr ? `تحديث فوري بناءً على سجلات الإنجاز` : `Real-time based on completion records`}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-right rtl:text-right ltr:text-left divide-y divide-slate-200">
+                    <thead className="bg-slate-900 text-white font-bold text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3">{isAr ? 'الفني والكود' : 'Technician'}</th>
+                        <th className="px-4 py-3 text-center">{isAr ? 'معدل الإنجاز في الوقت المحدد' : 'On-Time Completion Rate'}</th>
+                        <th className="px-4 py-3 text-center">{isAr ? 'عدد الأعطال المتكررة لنفس المصعد' : 'Repeated Lift Faults'}</th>
+                        <th className="px-4 py-3 text-center">{isAr ? 'إصلاح الأعطال (5/يوم)' : 'Repairs (5/d)'}</th>
+                        <th className="px-4 py-3 text-center">{isAr ? 'زيارات الصيانة (12/يوم)' : 'Visits (12/d)'}</th>
+                        <th className="px-4 py-3 text-center">{isAr ? 'متوسط زمن الحل' : 'Avg MTTR'}</th>
+                        <th className="px-4 py-3 text-center">{isAr ? 'الدرجة والتقييم' : 'KPI Grade'}</th>
+                        <th className="px-4 py-3 text-center">{isAr ? 'إجراءات' : 'Actions'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {technicianKpis.map((kpi) => {
+                        const targetEmp = employees.find(e => e.id === kpi.technicianId);
+                        const techRes = techResolutionMap[kpi.technicianId];
+                        return (
+                          <tr key={kpi.technicianId} className="hover:bg-slate-50/80 transition-colors">
+                            {/* Technician & Code */}
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`w-8 h-8 rounded-lg ${kpi.avatarBg || 'bg-blue-600'} text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs`}>
+                                  {kpi.technicianName.charAt(0)}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                    <span>{kpi.technicianName}</span>
+                                    {kpi.isOverachiever && <span title={isAr ? 'متفوق ومحقق للتارقت' : 'Overachiever'}>⭐</span>}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5">
+                                    <span>{kpi.technicianCode}</span>
+                                    {kpi.assignedZone && <span>&bull; {kpi.assignedZone}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* معدل الإنجاز في الوقت المحدد */}
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              <div className="inline-flex flex-col items-center">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${
+                                  kpi.onTimeCompletionRatePct >= 90
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                    : kpi.onTimeCompletionRatePct >= 75
+                                    ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                    : 'bg-rose-50 text-rose-800 border-rose-300'
+                                }`}>
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span>{kpi.onTimeCompletionRatePct}%</span>
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-sans mt-0.5">
+                                  {kpi.resolvedBreakdownsCount > 0
+                                    ? (isAr ? `${kpi.onTimeResolvedCount} من ${kpi.resolvedBreakdownsCount} بالموعد` : `${kpi.onTimeResolvedCount}/${kpi.resolvedBreakdownsCount} on-time`)
+                                    : (isAr ? 'لا توجد بلاغات' : 'No tickets')}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* عدد الأعطال المتكررة لنفس المصعد */}
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              {kpi.repeatedBreakdownsCount === 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>{isAr ? '0 (لا تكرار 🟢)' : '0 (None 🟢)'}</span>
+                                </span>
+                              ) : (
+                                <div className="inline-flex flex-col items-center">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
+                                    <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                    <span>{isAr ? `${kpi.repeatedBreakdownsCount} أعطال متكررة ⚠️` : `${kpi.repeatedBreakdownsCount} repeated`}</span>
+                                  </span>
+                                  <span className="text-[10px] text-amber-700 font-sans mt-0.5">
+                                    {isAr ? `في ${kpi.repeatedElevatorsCount} مصعد` : `in ${kpi.repeatedElevatorsCount} lifts`}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* إصلاح الأعطال (5/يوم) */}
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              <div className="font-mono text-xs">
+                                <span className="font-bold text-rose-900">
+                                  {kpi.resolvedBreakdownsCount} / {kpi.monthlyBreakdownsTarget}
+                                </span>
+                                <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                                  {kpi.dailyBreakdownsAvg} {isAr ? 'يومياً' : '/d'} ({kpi.breakdownsAchievementPct}%)
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* زيارات الصيانة (12/يوم) */}
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              <div className="font-mono text-xs">
+                                <span className="font-bold text-blue-900">
+                                  {kpi.completedVisitsCount} / {kpi.monthlyVisitsTarget}
+                                </span>
+                                <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                                  {kpi.dailyVisitsAvg} {isAr ? 'يومياً' : '/d'} ({kpi.visitsAchievementPct}%)
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* متوسط زمن الحل */}
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              <span className="font-mono font-bold text-indigo-900 text-xs">
+                                {techRes ? (isAr ? techRes.avgResolutionFormattedAr : techRes.avgResolutionFormattedEn) : (kpi.avgResolutionMinutes ? `${kpi.avgResolutionMinutes} دقيقة` : '-')}
+                              </span>
+                            </td>
+
+                            {/* الدرجة والتقييم */}
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              <div className="inline-flex flex-col items-center">
+                                <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-black border ${kpi.badgeClass}`}>
+                                  {kpi.grade}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-500 font-bold mt-0.5">
+                                  {kpi.compositeScore}% {kpi.isOverachiever && `(+${kpi.bonusPoints})`}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (targetEmp) setViewingEmployee(targetEmp);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
+                                title={isAr ? 'عرض الملف التفصيلي للفني' : 'View profile'}
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{isAr ? 'التفاصيل' : 'View'}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 3.2 DETAILED TECHNICIAN KPI PERFORMANCE CARDS */}
+            {(kpiViewMode === 'CARDS' || kpiViewMode === 'BOTH') && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {technicianKpis.map((kpi) => {
+                  return (
+                    <div
+                      key={kpi.technicianId}
+                      className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-3.5 relative overflow-hidden"
+                    >
+                      {/* Top Stripe: Tech Profile & Grade Badge */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-10 h-10 rounded-xl ${kpi.avatarBg || 'bg-blue-600'} text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs`}>
+                            {kpi.technicianName.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="font-black text-slate-900 text-sm leading-tight">{kpi.technicianName}</div>
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-2">
+                              <span>{kpi.technicianCode}</span>
+                              {kpi.assignedZone && (
+                                <span className="text-slate-400 font-sans truncate max-w-[120px]">&bull; {kpi.assignedZone}</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-black text-slate-900 text-sm leading-tight">{kpi.technicianName}</div>
-                          <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-2">
-                            <span>{kpi.technicianCode}</span>
-                            {kpi.assignedZone && (
-                              <span className="text-slate-400 font-sans truncate max-w-[120px]">&bull; {kpi.assignedZone}</span>
-                            )}
+
+                        {/* Grade Badge */}
+                        <div className="text-center shrink-0">
+                          <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black border ${kpi.badgeClass}`}>
+                            {kpi.grade}
+                          </span>
+                          <div className="text-[10px] text-slate-500 font-bold mt-0.5 font-mono">
+                            {kpi.compositeScore}%
                           </div>
                         </div>
                       </div>
 
-                      {/* Grade Badge */}
-                      <div className="text-center shrink-0">
-                        <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black border ${kpi.badgeClass}`}>
-                          {kpi.grade}
-                        </span>
-                        <div className="text-[10px] text-slate-500 font-bold mt-0.5 font-mono">
-                          {kpi.compositeScore}%
+                      {/* Honor / Overachiever Banner if score >= 100 */}
+                      {kpi.isOverachiever && (
+                        <div className="bg-gradient-to-r from-purple-50 to-emerald-50 border border-purple-200 text-purple-900 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <Award className="w-3.5 h-3.5 text-amber-500" />
+                            <span>{isAr ? kpi.gradeLabelAr : kpi.gradeLabelEn}</span>
+                          </span>
+                          <span className="font-mono bg-purple-200/60 px-1.5 py-0.2 rounded text-[10px] text-purple-800">
+                            +{kpi.bonusPoints} {isAr ? 'درجة تميز' : 'pts'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* New KPI Metrics: On-Time Rate & Repeated Elevator Faults */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* On-Time Completion Rate */}
+                        <div className="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200/80">
+                          <div className="text-[10px] font-bold text-emerald-800 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-emerald-600" />
+                            <span>{isAr ? 'الإنجاز بالموعد' : 'On-Time'}</span>
+                          </div>
+                          <div className="text-base font-black text-emerald-900 font-mono mt-0.5">
+                            {kpi.onTimeCompletionRatePct}%
+                          </div>
+                          <div className="text-[10px] text-emerald-700 font-sans mt-0.5">
+                            {isAr ? `${kpi.onTimeResolvedCount} من ${kpi.resolvedBreakdownsCount} بالموعد` : `${kpi.onTimeResolvedCount}/${kpi.resolvedBreakdownsCount}`}
+                          </div>
+                        </div>
+
+                        {/* Repeated Elevator Breakdowns */}
+                        <div className="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80">
+                          <div className="text-[10px] font-bold text-amber-800 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                            <span>{isAr ? 'أعطال متكررة' : 'Repeats'}</span>
+                          </div>
+                          <div className="text-base font-black text-slate-900 font-mono mt-0.5">
+                            {kpi.repeatedBreakdownsCount}
+                          </div>
+                          <div className="text-[10px] text-amber-800 font-sans mt-0.5 truncate">
+                            {kpi.repeatedBreakdownsCount === 0
+                              ? (isAr ? 'لا تكرار لنفس المصعد 🟢' : 'No repeats 🟢')
+                              : (isAr ? `في ${kpi.repeatedElevatorsCount} مصعد ⚠️` : `in ${kpi.repeatedElevatorsCount} lifts ⚠️`)}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Honor / Overachiever Banner if score >= 100 */}
-                    {kpi.isOverachiever && (
-                      <div className="bg-gradient-to-r from-purple-50 to-emerald-50 border border-purple-200 text-purple-900 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between">
-                        <span className="flex items-center gap-1.5">
-                          <Award className="w-3.5 h-3.5 text-amber-500" />
-                          <span>{isAr ? kpi.gradeLabelAr : kpi.gradeLabelEn}</span>
-                        </span>
-                        <span className="font-mono bg-purple-200/60 px-1.5 py-0.2 rounded text-[10px] text-purple-800">
-                          +{kpi.bonusPoints} {isAr ? 'درجة تميز' : 'pts'}
-                        </span>
-                      </div>
-                    )}
+                      {/* Metric 1: Maintenance Visits (12/day Target) */}
+                      <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/70 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-700 flex items-center gap-1">
+                            <Wrench className="w-3.5 h-3.5 text-blue-600" />
+                            <span>{isAr ? 'زيارات الصيانة الدورية' : 'Maintenance Visits'}</span>
+                          </span>
+                          <span className="font-mono font-bold text-blue-900">
+                            {kpi.completedVisitsCount} / {kpi.monthlyVisitsTarget}
+                          </span>
+                        </div>
 
-                    {/* Metric 1: Maintenance Visits (12/day Target) */}
-                    <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/70 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-700 flex items-center gap-1">
-                          <Wrench className="w-3.5 h-3.5 text-blue-600" />
-                          <span>{isAr ? 'زيارات الصيانة الدورية' : 'Maintenance Visits'}</span>
-                        </span>
-                        <span className="font-mono font-bold text-blue-900">
-                          {kpi.completedVisitsCount} / {kpi.monthlyVisitsTarget}
-                        </span>
-                      </div>
+                        {/* Progress bar */}
+                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              kpi.visitsAchievementPct >= 100 ? 'bg-emerald-500' : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${Math.min(100, kpi.visitsAchievementPct)}%` }}
+                          />
+                        </div>
 
-                      {/* Progress bar */}
-                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-full transition-all ${
-                            kpi.visitsAchievementPct >= 100 ? 'bg-emerald-500' : 'bg-blue-500'
-                          }`}
-                          style={{ width: `${Math.min(100, kpi.visitsAchievementPct)}%` }}
-                        />
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span>
+                            {isAr ? 'المعدل اليومي: ' : 'Daily avg: '}
+                            <strong className="text-slate-800 font-mono">{kpi.dailyVisitsAvg}</strong>
+                            <span className="text-[10px] text-slate-400"> (مستهدف 12)</span>
+                          </span>
+                          <span className={`font-mono font-bold ${kpi.visitsAchievementPct >= 100 ? 'text-emerald-700' : 'text-slate-700'}`}>
+                            {kpi.visitsAchievementPct}%
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span>
-                          {isAr ? 'المعدل اليومي: ' : 'Daily avg: '}
-                          <strong className="text-slate-800 font-mono">{kpi.dailyVisitsAvg}</strong>
-                          <span className="text-[10px] text-slate-400"> (مستهدف 12)</span>
-                        </span>
-                        <span className={`font-mono font-bold ${kpi.visitsAchievementPct >= 100 ? 'text-emerald-700' : 'text-slate-700'}`}>
-                          {kpi.visitsAchievementPct}%
-                        </span>
-                      </div>
-                    </div>
+                      {/* Metric 2: Breakdown Repairs (5/day Target) */}
+                      <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/70 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-700 flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                            <span>{isAr ? 'إصلاح بلاغات الأعطال' : 'Breakdown Repairs'}</span>
+                          </span>
+                          <span className="font-mono font-bold text-rose-900">
+                            {kpi.resolvedBreakdownsCount} / {kpi.monthlyBreakdownsTarget}
+                          </span>
+                        </div>
 
-                    {/* Metric 2: Breakdown Repairs (5/day Target) */}
-                    <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/70 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-700 flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                          <span>{isAr ? 'إصلاح بلاغات الأعطال' : 'Breakdown Repairs'}</span>
-                        </span>
-                        <span className="font-mono font-bold text-rose-900">
-                          {kpi.resolvedBreakdownsCount} / {kpi.monthlyBreakdownsTarget}
-                        </span>
+                        {/* Progress bar */}
+                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              kpi.breakdownsAchievementPct >= 100 ? 'bg-emerald-500' : 'bg-rose-500'
+                            }`}
+                            style={{ width: `${Math.min(100, kpi.breakdownsAchievementPct)}%` }}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span>
+                            {isAr ? 'المعدل اليومي: ' : 'Daily avg: '}
+                            <strong className="text-slate-800 font-mono">{kpi.dailyBreakdownsAvg}</strong>
+                            <span className="text-[10px] text-slate-400"> (مستهدف 5)</span>
+                          </span>
+                          <span className={`font-mono font-bold ${kpi.breakdownsAchievementPct >= 100 ? 'text-emerald-700' : 'text-slate-700'}`}>
+                            {kpi.breakdownsAchievementPct}%
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Progress bar */}
-                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-full transition-all ${
-                            kpi.breakdownsAchievementPct >= 100 ? 'bg-emerald-500' : 'bg-rose-500'
-                          }`}
-                          style={{ width: `${Math.min(100, kpi.breakdownsAchievementPct)}%` }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span>
-                          {isAr ? 'المعدل اليومي: ' : 'Daily avg: '}
-                          <strong className="text-slate-800 font-mono">{kpi.dailyBreakdownsAvg}</strong>
-                          <span className="text-[10px] text-slate-400"> (مستهدف 5)</span>
+                      {/* Footer Score Summary */}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                        <span className="text-slate-500 font-medium">
+                          {isAr ? 'التقييم والدرجات المستحقة:' : 'Evaluation:'}
                         </span>
-                        <span className={`font-mono font-bold ${kpi.breakdownsAchievementPct >= 100 ? 'text-emerald-700' : 'text-slate-700'}`}>
-                          {kpi.breakdownsAchievementPct}%
+                        <span className="font-black text-slate-900">
+                          {isAr ? kpi.gradeLabelAr : kpi.gradeLabelEn}
                         </span>
                       </div>
                     </div>
-
-                    {/* Footer Score Summary */}
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
-                      <span className="text-slate-500 font-medium">
-                        {isAr ? 'التقييم والدرجات المستحقة:' : 'Evaluation:'}
-                      </span>
-                      <span className="font-black text-slate-900">
-                        {isAr ? kpi.gradeLabelAr : kpi.gradeLabelEn}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

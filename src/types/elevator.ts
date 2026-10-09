@@ -77,6 +77,8 @@ export interface ProjectEmployeeLaborLog {
   hoursWorked: number; // e.g. 8.0
   regularHours?: number; // e.g. 8.0
   overtimeHours?: number; // e.g. 2.0
+  isOvertime?: boolean; // explicit overtime toggle flag
+  overtimeReason?: string; // e.g. "Urgent site delivery handover", "Evening testing"
   hourlyRate: number; // SAR/hr
   overtimeMultiplier?: number; // default 1.5
   monthlySalarySar?: number; // Optional monthly salary reference
@@ -240,6 +242,13 @@ export interface ElevatorSpecification {
   cabinSideOffsetMm?: number; // Custom horizontal offset
   counterweightWidthMm?: number; // Custom counterweight width in mm
   counterweightDepthMm?: number; // Custom counterweight depth in mm
+
+  // Architectural 3D Rendering & Visualization (Imagen API / Placeholder Generator)
+  architecturalRenderUrl?: string; // Generated image data URI or asset URL for PDF quotations
+  architecturalRenderPrompt?: string; // Text prompt used to generate the image
+  architecturalRenderType?: 'CABIN_INTERIOR' | 'SHAFT_SECTION' | 'PANORAMIC_GLASS' | 'ENTRANCE_DOOR';
+  architecturalRenderCaption?: string; // Caption shown under the render in PDF
+  includeRenderInPdf?: boolean; // Toggle to show/hide in printed PDF quotation
 }
 
 export type ComponentCategory = 

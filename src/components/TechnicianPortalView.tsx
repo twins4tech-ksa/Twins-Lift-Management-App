@@ -52,6 +52,7 @@ import { BreakdownReportModal } from './BreakdownReportModal';
 import { OfflineSyncBanner } from './OfflineSyncBanner';
 import { PWAInstallButton } from './PWAInstallButton';
 import { useOnlineStatus, setSimulatedOffline, isSimulatedOfflineActive } from '../hooks/useOnlineStatus';
+import { useLiveTracking } from '../hooks/useLiveTracking';
 import { offlineSyncService, OfflineSyncStatus } from '../services/offlineSyncService';
 import { 
   DAILY_TARGET_BREAKDOWNS, 
@@ -66,6 +67,8 @@ import {
   buildVisitScheduledMessage, 
   generateWaMeUrl 
 } from '../services/whatsappService';
+import { Radio, Flame, Volume2, VolumeX, ShieldAlert, Compass, Cpu, QrCode, Smartphone, Zap } from 'lucide-react';
+import { ElevatorPassportModal, ElevatorPassportData } from './ElevatorPassportModal';
 
 interface Props {
   currentUser: UserProfile;
@@ -78,6 +81,8 @@ interface Props {
   onOpenDrawings: () => void;
   onOpenVisitReview?: (contractId: string, visitId: string) => void;
   onSaveContract?: (contract: MaintenanceContract) => void;
+  onOpenRescueConsole?: (breakdown?: MaintenanceBreakdown) => void;
+  onOpenCabinSticker?: (elevator?: any) => void;
   companySettings?: CompanySettings;
   isAr?: boolean;
 }
@@ -100,12 +105,62 @@ export const TechnicianPortalView: React.FC<Props> = ({
   onOpenGpsCheckIn,
   onOpenDrawings,
   onSaveContract,
+  onOpenRescueConsole,
+  onOpenCabinSticker,
   companySettings = DEFAULT_COMPANY_SETTINGS,
   isAr = true,
 }) => {
   const isOnline = useOnlineStatus();
+  const liveTracking = useLiveTracking();
   const [offlineSyncStatus, setOfflineSyncStatus] = useState<OfflineSyncStatus>(offlineSyncService.getStatus());
   const [isSimulatedBasementOffline, setIsSimulatedBasementOffline] = useState<boolean>(() => isSimulatedOfflineActive());
+
+  // Elevator Passport state
+  const [isPassportModalOpen, setIsPassportModalOpen] = useState(false);
+  const [selectedElevatorPassport, setSelectedElevatorPassport] = useState<ElevatorPassportData | null>(null);
+  const [passportSearchQuery, setPassportSearchQuery] = useState('');
+
+  const handleOpenElevatorPassportFromContract = (contract: MaintenanceContract) => {
+    setSelectedElevatorPassport({
+      elevatorId: contract.elevatorProjectId || contract.elevatorNumber || contract.id,
+      elevatorName: contract.elevatorName,
+      elevatorSerial: contract.elevatorNumber || contract.contractRef,
+      buildingName: contract.siteLocation || contract.title || contract.customerName,
+      siteLocation: contract.siteLocation,
+      customerName: contract.customerName,
+      customerPhone: contract.customerPhone,
+      latitude: contract.latitude,
+      longitude: contract.longitude,
+      capacityKg: contract.elevatorCapacityKg || 630,
+      stops: contract.elevatorStops || 6,
+      contractRef: contract.contractRef,
+      contractStatus: contract.status,
+    });
+    setIsPassportModalOpen(true);
+  };
+
+  const handleOpenElevatorPassportFromBreakdown = (breakdown: MaintenanceBreakdown) => {
+    const linkedContract = contracts.find(c => c.id === breakdown.contractId || c.elevatorName === breakdown.elevatorName);
+    setSelectedElevatorPassport({
+      elevatorId: breakdown.elevatorNumber || breakdown.id,
+      elevatorName: breakdown.elevatorName,
+      elevatorSerial: breakdown.elevatorNumber || breakdown.id,
+      buildingName: breakdown.customerName,
+      siteLocation: breakdown.siteLocation,
+      customerName: breakdown.customerName,
+      customerPhone: breakdown.customerPhone,
+      capacityKg: linkedContract?.elevatorCapacityKg || 630,
+      stops: linkedContract?.elevatorStops || 6,
+      contractRef: linkedContract?.contractRef,
+      contractStatus: linkedContract?.status,
+    });
+    setIsPassportModalOpen(true);
+  };
+
+  // Find active passenger entrapment emergency
+  const activeEntrapment = useMemo(() => {
+    return breakdowns.find(b => !b.isResolved && (b.isPassengerEntrapment || b.description.includes('احتجاز')));
+  }, [breakdowns]);
 
   const toggleBasementMode = () => {
     const next = !isSimulatedBasementOffline;
@@ -641,6 +696,224 @@ export const TechnicianPortalView: React.FC<Props> = ({
       </div>
 
       {/* ===================================================================== */}
+      {/* 1.2 LIVE EMERGENCY ENTRAPMENT SOS BANNER (IF ACTIVE)                  */}
+      {/* ===================================================================== */}
+      {activeEntrapment && (
+        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white rounded-3xl p-4 sm:p-5 shadow-xl shadow-red-600/30 border border-red-400/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+              <Flame className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-white text-red-700 font-black text-[10px] uppercase">
+                  {isAr ? 'نداء استغاثة عاجل' : 'SOS Emergency'}
+                </span>
+                <span className="text-xs font-bold text-red-100">
+                  {isAr ? 'حالة احتجاز أشخاص بالمصعد!' : 'Trapped Passengers in Elevator!'}
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black mt-0.5">
+                {activeEntrapment.elevatorName} — {activeEntrapment.customerName}
+              </h3>
+              <p className="text-xs text-red-100/90 flex items-center gap-2 mt-1">
+                <span>📍 {activeEntrapment.siteLocation}</span>
+                {activeEntrapment.trappedPassengersCount && (
+                  <span>• 👥 {activeEntrapment.trappedPassengersCount} {isAr ? 'أشخاص محتجزين' : 'passengers'}</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0 justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenRescueConsole && onOpenRescueConsole(activeEntrapment)}
+              className="w-full md:w-auto px-5 py-2.5 bg-white text-red-700 hover:bg-red-50 rounded-2xl text-xs sm:text-sm font-black transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+            >
+              <Radio className="w-4 h-4 text-red-600 animate-spin" />
+              <span>{isAr ? 'فتح غرفة عمليات الإنقاذ وتوجيه GPS' : 'Open Rescue Console'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* 1.25 ELEVATOR PASSPORT & INSTANT QUICK-CONNECT HUB                    */}
+      {/* ===================================================================== */}
+      <div className="bg-gradient-to-br from-white via-slate-50 to-blue-50/40 rounded-3xl p-4 sm:p-5 shadow-xs border border-blue-200/80 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200/80">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-md shadow-blue-600/30">
+              <Cpu className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-black text-slate-900">
+                  {isAr ? 'جواز سفر المصعد والربط الميداني السريع' : 'Elevator Passport & Instant Quick-Connect'}
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                  {isAr ? 'ربط فوري شامل ⚡' : 'Instant Connect ⚡'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isAr 
+                  ? 'اختر أو ابحث عن أي مصعد للوصول الفوري للمواصفات، فحص SBC 801، قطع الغيار، ومخططات CAD' 
+                  : 'Fast lookup to connect to elevator passport, SBC 801 audits, spare parts, and CAD schematics'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Search & Filtered Chips */}
+        <div className="space-y-2.5">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 rtl:right-3.5 ltr:left-3.5" />
+            <input
+              type="text"
+              value={passportSearchQuery}
+              onChange={(e) => setPassportSearchQuery(e.target.value)}
+              placeholder={isAr ? 'ابحث باسم المصعد، اسم المبنى، كود المصعد أو رقم العقد...' : 'Search by elevator, building, or contract...'}
+              className="w-full bg-white border border-slate-300 focus:border-blue-500 rounded-xl py-2 px-9 text-xs font-medium text-slate-900 shadow-2xs placeholder:text-slate-400 outline-none transition-all"
+            />
+            {passportSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setPassportSearchQuery('')}
+                className="absolute left-3 top-1/2 -translate-y-1/2 rtl:left-3 ltr:right-3 text-slate-400 hover:text-slate-600 text-xs font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Quick Elevator Chips for Instant 1-Tap Opening */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 select-none scrollbar-thin">
+            <span className="text-[11px] font-bold text-slate-500 shrink-0">
+              {isAr ? 'المصاعد المتاحة:' : 'Elevators:'}
+            </span>
+            {contracts
+              .filter(c => {
+                if (!passportSearchQuery.trim()) return true;
+                const q = passportSearchQuery.toLowerCase();
+                return (
+                  c.elevatorName.toLowerCase().includes(q) ||
+                  c.customerName.toLowerCase().includes(q) ||
+                  c.siteLocation.toLowerCase().includes(q) ||
+                  c.contractRef.toLowerCase().includes(q)
+                );
+              })
+              .slice(0, 6)
+              .map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => handleOpenElevatorPassportFromContract(c)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-blue-50 text-slate-800 hover:text-blue-700 border border-slate-300 hover:border-blue-300 shadow-2xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                >
+                  <Cpu className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="truncate max-w-[160px]">{c.elevatorName}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">({c.contractRef})</span>
+                </button>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ===================================================================== */}
+      {/* 1.3 FIELD DUTY GPS LIVE TRACKING & SCREEN WAKE-LOCK PANEL             */}
+      {/* ===================================================================== */}
+      <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-slate-800 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+              liveTracking.isTracking ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-slate-400'
+            }`}>
+              <Radio className={`w-5 h-5 ${liveTracking.isTracking ? 'animate-pulse' : ''}`} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-black text-white">
+                  {isAr ? 'المناوبة الميدانية وتتبع الـ GPS الحي (PWA Standby)' : 'Field Duty Live GPS Tracking (PWA)'}
+                </h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  liveTracking.isTracking ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {liveTracking.isTracking ? (isAr ? 'نشط على الخريطة' : 'Live on Map') : (isAr ? 'غير مفعل' : 'Idle')}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {isAr 
+                  ? 'يرسل إحداثيات موقعك الحي لغرفة العمليات لتوجيهك لأقرب حالات احتجاز وأعطال الطوارئ' 
+                  : 'Broadcasts your live GPS position for instant emergency entrapment dispatch'}
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle Live Tracking Button */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                if (liveTracking.isTracking) {
+                  liveTracking.stopTracking();
+                  triggerToast(isAr ? 'تم إيقاف وضع التتبع الميداني' : 'Stopped live tracking');
+                } else {
+                  await liveTracking.startTracking();
+                  triggerToast(isAr ? 'تم تفعيل التتبع الحي وإبقاء الشاشة مضاءة (Wake Lock)' : 'Started live tracking with Screen Wake Lock');
+                }
+              }}
+              className={`px-4 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shadow-md ${
+                liveTracking.isTracking
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
+              }`}
+            >
+              <Navigation className="w-3.5 h-3.5 fill-current" />
+              <span>
+                {liveTracking.isTracking 
+                  ? (isAr ? 'إيقاف المناوبة الحية' : 'Stop Live Duty') 
+                  : (isAr ? 'تفعيل المناوبة والـ GPS' : 'Enable Live Duty')}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Live GPS Telemetry Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+          <div className="bg-slate-800/60 p-2.5 rounded-2xl border border-slate-700/60">
+            <span className="text-[10px] text-slate-400 block font-bold">{isAr ? 'إحداثيات الـ GPS' : 'GPS Coordinates'}</span>
+            <span className="font-mono font-bold text-slate-200 text-[11px] truncate block">
+              {liveTracking.currentPosition 
+                ? `${liveTracking.currentPosition.latitude.toFixed(4)}, ${liveTracking.currentPosition.longitude.toFixed(4)}`
+                : (isAr ? 'بانتظار الإشارة...' : 'Acquiring...')}
+            </span>
+          </div>
+
+          <div className="bg-slate-800/60 p-2.5 rounded-2xl border border-slate-700/60">
+            <span className="text-[10px] text-slate-400 block font-bold">{isAr ? 'دقة الموقع الجغرافي' : 'Accuracy'}</span>
+            <span className="font-mono font-bold text-emerald-400 text-[11px] block">
+              {liveTracking.currentPosition ? `± ${liveTracking.currentPosition.accuracy}m` : '-'}
+            </span>
+          </div>
+
+          <div className="bg-slate-800/60 p-2.5 rounded-2xl border border-slate-700/60">
+            <span className="text-[10px] text-slate-400 block font-bold">{isAr ? 'إبقاء الشاشة (Wake Lock)' : 'Screen Awake'}</span>
+            <span className={`font-bold text-[11px] block ${liveTracking.wakeLockActive ? 'text-emerald-400' : 'text-slate-400'}`}>
+              {liveTracking.wakeLockActive ? (isAr ? '✓ مفعل (لن تنطفئ)' : 'Active') : (isAr ? 'عادي' : 'Standard')}
+            </span>
+          </div>
+
+          <div className="bg-slate-800/60 p-2.5 rounded-2xl border border-slate-700/60">
+            <span className="text-[10px] text-slate-400 block font-bold">{isAr ? 'حالة الاستعداد للطوارئ' : 'Emergency State'}</span>
+            <span className="font-bold text-[11px] text-amber-300 block truncate">
+              {activeEntrapment ? (isAr ? '🚨 يوجد استغاثة!' : 'SOS Alert!') : (isAr ? 'جاهز للاستجابة' : 'Ready')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================================================================== */}
       {/* 1.5 TECHNICIAN DAILY & MONTHLY KPI CARD                               */}
       {/* ===================================================================== */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3">
@@ -883,6 +1156,15 @@ export const TechnicianPortalView: React.FC<Props> = ({
                     <span className="text-sm font-black text-slate-900">
                       {breakdown.elevatorName}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenElevatorPassportFromBreakdown(breakdown)}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors cursor-pointer"
+                      title={isAr ? 'فتح جواز سفر وبطاقة المصعد الرقمية والربط السريع' : 'Open Elevator Passport'}
+                    >
+                      <Cpu className="w-3 h-3 text-blue-600" />
+                      <span>{isAr ? 'جواز المصعد' : 'Passport'}</span>
+                    </button>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-800 border border-red-200">
                       {breakdown.priority === 'Emergency' ? '🚨 طارئ جداً' : breakdown.priority}
                     </span>
@@ -918,6 +1200,38 @@ export const TechnicianPortalView: React.FC<Props> = ({
 
                 {/* Status Update Quick Buttons */}
                 <div className="flex flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto justify-end">
+                  {/* Quick Navigation Button */}
+                  {breakdown.siteLocation && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(breakdown.siteLocation)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
+                      title={isAr ? 'بدء التوجيه الملاحي الفوري' : 'Navigate'}
+                    >
+                      <Navigation className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
+                      <span>{isAr ? 'ملاحة' : 'Route'}</span>
+                    </a>
+                  )}
+
+                  {/* Send WhatsApp to Client */}
+                  {breakdown.customerPhone && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cleanPhone = (breakdown.customerPhone || '').replace(/[^0-9]/g, '');
+                        const text = isAr 
+                          ? `مرحباً ${breakdown.customerName}، معكم فني الطوارئ من شركة ${companySettings.companyNameAr || 'توينز للمصاعد'}. بخصوص بلاغكم عن (${breakdown.elevatorName})، نحن نتابع الحالة الآن وسنصل إليكم في أسرع وقت.`
+                          : `Hello, technician from ${companySettings.companyNameEn || 'Twins Elevators'} regarding breakdown for ${breakdown.elevatorName}.`;
+                        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
+                      }}
+                      className="p-1.5 rounded-xl text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                      title={isAr ? 'واتساب العميل' : 'WhatsApp'}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
                   {/* Damaged Parts Photo & Voucher Button */}
                   <button
                     type="button"
@@ -1080,6 +1394,15 @@ export const TechnicianPortalView: React.FC<Props> = ({
                       <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                         {item.contract.elevatorName}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenElevatorPassportFromContract(item.contract)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 transition-colors cursor-pointer"
+                        title={isAr ? 'فتح جواز سفر وبطاقة المصعد الرقمية والربط السريع' : 'Open Elevator Passport'}
+                      >
+                        <Cpu className="w-3 h-3 text-blue-600" />
+                        <span>{isAr ? 'جواز المصعد' : 'Passport'}</span>
+                      </button>
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${statusCfg.badgeClass}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dotClass}`}></span>
                         {isAr ? statusCfg.labelAr : statusCfg.labelEn}
@@ -1181,6 +1504,22 @@ export const TechnicianPortalView: React.FC<Props> = ({
                       <FileText className="w-3.5 h-3.5" />
                       <span>{isDone ? (isAr ? 'استعراض التقرير' : 'View Report') : (isAr ? 'توثيق الفحص' : 'Document Visit')}</span>
                     </button>
+
+                    {/* Instant Navigation to Site */}
+                    {item.contract.siteLocation && (
+                      <a
+                        href={item.contract.latitude && item.contract.longitude 
+                          ? `https://www.google.com/maps/dir/?api=1&destination=${item.contract.latitude},${item.contract.longitude}`
+                          : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(item.contract.siteLocation)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs rounded-xl border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
+                        title={isAr ? 'بدء التوجيه الملاحي عبر خرائط جوجل' : 'Navigate'}
+                      >
+                        <Navigation className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
+                        <span>{isAr ? 'ملاحة' : 'Route'}</span>
+                      </a>
+                    )}
 
                     {/* SBC 801 Standard 24-point Inspection Checklist */}
                     <button
@@ -1630,6 +1969,108 @@ export const TechnicianPortalView: React.FC<Props> = ({
           }}
         />
       )}
+
+      {/* Elevator Digital Passport Modal */}
+      {isPassportModalOpen && selectedElevatorPassport && (
+        <ElevatorPassportModal
+          isOpen={isPassportModalOpen}
+          onClose={() => setIsPassportModalOpen(false)}
+          elevator={selectedElevatorPassport}
+          contract={contracts.find(c => c.contractRef === selectedElevatorPassport.contractRef || c.elevatorName === selectedElevatorPassport.elevatorName)}
+          breakdowns={breakdowns}
+          vouchers={allPartsVouchers}
+          inspectionReports={allInspectionReports}
+          companySettings={companySettings}
+          isAr={isAr}
+          onStartSbcInspection={(elev) => {
+            setSelectedElevatorForSbc({
+              elevatorId: elev.elevatorId,
+              elevatorName: elev.elevatorName,
+              buildingName: elev.buildingName,
+              customerName: elev.customerName,
+              customerPhone: elev.customerPhone || '0551717838',
+            });
+            setIsSbcModalOpen(true);
+          }}
+          onRequestParts={() => {
+            setVoucherContextBreakdown(null);
+            setVoucherContextVisit(null);
+            setIsVoucherModalOpen(true);
+          }}
+          onOpenDrawings={onOpenDrawings}
+          onOpenCabinSticker={onOpenCabinSticker}
+        />
+      )}
+
+      {/* Mobile Sticky Quick Navigation Bar */}
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 lg:hidden px-3 py-2 shadow-2xl flex items-center justify-around text-slate-300 text-[10px] font-bold select-none">
+        <button
+          type="button"
+          onClick={() => {
+            setVisitTab('TODAY');
+            window.scrollTo({ top: 750, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center gap-0.5 p-1 rounded-xl transition-all cursor-pointer ${
+            visitTab === 'TODAY' ? 'text-blue-400 font-black' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          <span>{isAr ? 'اليوم' : 'Today'}</span>
+          {stats.todayCount > 0 && (
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setBreakdownFilter('ACTIVE');
+            window.scrollTo({ top: 550, behavior: 'smooth' });
+          }}
+          className="flex flex-col items-center gap-0.5 p-1 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer"
+        >
+          <AlertTriangle className={`w-4 h-4 ${activeBreakdowns.length > 0 ? 'text-rose-400 animate-pulse' : ''}`} />
+          <span>{isAr ? 'الأعطال' : 'Alerts'}</span>
+          {activeBreakdowns.length > 0 && (
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (contracts.length > 0) {
+              handleOpenElevatorPassportFromContract(contracts[0]);
+            }
+          }}
+          className="flex flex-col items-center gap-0.5 p-1.5 -mt-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/40 transition-all cursor-pointer active:scale-95"
+        >
+          <Cpu className="w-5 h-5 text-white" />
+          <span className="text-[9px] font-black">{isAr ? 'الجواز' : 'Passport'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setVoucherContextBreakdown(null);
+            setVoucherContextVisit(null);
+            setIsVoucherModalOpen(true);
+          }}
+          className="flex flex-col items-center gap-0.5 p-1 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer"
+        >
+          <Camera className="w-4 h-4 text-amber-400" />
+          <span>{isAr ? 'قطع غيار' : 'Parts'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenGpsCheckIn}
+          className="flex flex-col items-center gap-0.5 p-1 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer"
+        >
+          <Navigation className="w-4 h-4 text-emerald-400" />
+          <span>{isAr ? 'حضور GPS' : 'GPS'}</span>
+        </button>
+      </div>
     </div>
   );
 };

@@ -5,6 +5,26 @@ import path from 'path';
 import net from 'net';
 import {defineConfig, Plugin} from 'vite';
 
+function suppressHmrWsPlugin(): Plugin {
+  return {
+    name: 'suppress-hmr-ws-plugin',
+    enforce: 'post',
+    transform(code, id) {
+      if (id.includes('@vite/client') || id.includes('vite/dist/client/client.mjs')) {
+        return code
+          .replace(
+            'transport.connect(createHMRHandler(handleMessage));',
+            'transport.connect(createHMRHandler(handleMessage)).catch(() => {});'
+          )
+          .replace(
+            'reject(new Error("WebSocket closed without opened."));',
+            'resolve();'
+          );
+      }
+    },
+  };
+}
+
 function dbHealthPlugin(): Plugin {
   return {
     name: 'db-health-check',
@@ -159,6 +179,29 @@ export default defineConfig(() => {
               purpose: 'maskable',
             },
           ],
+          shortcuts: [
+            {
+              name: 'تسجيل حضور GPS',
+              short_name: 'حضور GPS',
+              description: 'تسجيل حضور فني الصيانة في الموقع الجغرافي',
+              url: '/?action=gps-attendance',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
+            },
+            {
+              name: 'بلاغ عطل وطوارئ',
+              short_name: 'بلاغ عطل',
+              description: 'تسجيل بلاغ عطل فوري في المصعد',
+              url: '/?action=new-breakdown',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
+            },
+            {
+              name: 'بوابة الفني الميداني',
+              short_name: 'بوابة الفني',
+              description: 'فتح بوابة الفني لمتابعة الزيارات وبلاغات الطوارئ',
+              url: '/?action=technician-portal',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
+            },
+          ],
         },
         workbox: {
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
@@ -199,7 +242,8 @@ export default defineConfig(() => {
           type: 'module',
         },
       }),
-      dbHealthPlugin()
+      dbHealthPlugin(),
+      suppressHmrWsPlugin()
     ],
     resolve: {
       alias: {

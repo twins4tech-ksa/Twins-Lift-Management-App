@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ElevatorSpecification, ProjectStatus, Customer } from './types/elevator';
 import { MaintenanceBreakdown } from './types/maintenance';
 import { SAMPLE_HISTORICAL_PROJECTS, SAMPLE_CUSTOMERS, DEFAULT_ELEVATOR_SPEC } from './data/sampleProjects';
@@ -44,8 +44,15 @@ import {
   Receipt,
   ShieldAlert,
   LayoutDashboard,
-  LogOut
+  LogOut,
+  Flame,
+  Smartphone
 } from 'lucide-react';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { ElevatorRescueDispatchModal } from './components/ElevatorRescueDispatchModal';
+import { ElevatorCabinEmergencyStickerModal } from './components/ElevatorCabinEmergencyStickerModal';
+import { CapacitorBuildModal } from './components/CapacitorBuildModal';
 import { ExecutiveDashboardView } from './components/ExecutiveDashboardView';
 import { DatabaseStatusModal, DbStatusInfo } from './components/DatabaseStatusModal';
 import { InventoryItem, InventoryMovement, Vendor, PurchaseOrder, PurchaseOrderStatus } from './types/inventory';
@@ -180,7 +187,17 @@ export default function App() {
   const [breakdowns, setBreakdowns] = useState<MaintenanceBreakdown[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_BREAKDOWNS);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed: MaintenanceBreakdown[] = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasSos = parsed.some(b => b.isPassengerEntrapment || b.id === 'brk-sos-001');
+          if (!hasSos) {
+            const sosItem = SAMPLE_BREAKDOWNS.find(b => b.isPassengerEntrapment);
+            if (sosItem) return [sosItem, ...parsed];
+          }
+          return parsed;
+        }
+      }
     } catch (e) {
       console.warn('Could not read stored breakdowns', e);
     }
@@ -189,6 +206,23 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_BREAKDOWNS, JSON.stringify(breakdowns));
+  }, [breakdowns]);
+
+  // Emergency Elevator Passenger Entrapment Rescue Console state
+  const [isRescueModalOpen, setIsRescueModalOpen] = useState(false);
+  const [selectedRescueBreakdown, setSelectedRescueBreakdown] = useState<MaintenanceBreakdown | null>(null);
+
+  // Elevator Cabin Safety Placard & Smart QR Modal state
+  const [isCabinStickerModalOpen, setIsCabinStickerModalOpen] = useState(false);
+  const [selectedStickerBreakdown, setSelectedStickerBreakdown] = useState<MaintenanceBreakdown | null>(null);
+  const [selectedStickerContract, setSelectedStickerContract] = useState<MaintenanceContract | null>(null);
+
+  // Capacitor Native APK & iOS Suite Modal state
+  const [isCapacitorModalOpen, setIsCapacitorModalOpen] = useState(false);
+
+  // Active Entrapment Incident Check
+  const activeEntrapment = useMemo(() => {
+    return breakdowns.find(b => !b.isResolved && (b.isPassengerEntrapment || b.description.includes('احتجاز')));
   }, [breakdowns]);
 
   const handleAddBreakdown = (breakdown: MaintenanceBreakdown) => {
@@ -282,7 +316,17 @@ export default function App() {
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_INVENTORY_MOVEMENTS);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length >= 20) {
+          return parsed;
+        }
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((p: any) => p.id));
+          const missing = SAMPLE_INVENTORY_MOVEMENTS.filter((m) => !existingIds.has(m.id));
+          return [...parsed, ...missing];
+        }
+      }
     } catch (e) {
       console.warn('Could not read stored inventory movements', e);
     }
@@ -431,52 +475,63 @@ export default function App() {
       performedBy?: string;
     }
   ) => {
-    setInventory((prev) =>
-      prev.map((item) => {
-        if (item.id !== itemId) return item;
-        const prevQty = item.quantityOnHand;
-        let nextQty = prevQty;
-        let nextReserved = item.quantityReserved || 0;
+    setInventory((prev) => {
+      const targetItem = prev.find(
+        (i) =>
+          i.id === itemId ||
+          (i.sku && itemId && i.sku.trim().toLowerCase() === itemId.trim().toLowerCase()) ||
+          (i.id && itemId && i.id.trim().toLowerCase() === itemId.trim().toLowerCase())
+      );
+      if (!targetItem) {
+        console.warn('Item not found for stock adjustment:', itemId);
+        return prev;
+      }
 
-        if (type === 'IN') {
-          nextQty = prevQty + changeQty;
-        } else if (type === 'OUT') {
-          nextQty = Math.max(0, prevQty - changeQty);
-        } else if (type === 'ADJUST') {
-          nextQty = Math.max(0, changeQty);
-        } else if (type === 'RESERVE') {
-          nextReserved = nextReserved + changeQty;
-        }
+      const prevQty = targetItem.quantityOnHand;
+      let nextQty = prevQty;
+      let nextReserved = targetItem.quantityReserved || 0;
 
-        const movement: InventoryMovement = {
-          id: `mov-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          itemId: item.id,
-          itemName: item.nameAr,
-          sku: item.sku,
-          type,
-          quantity: changeQty,
-          previousQty: prevQty,
-          newQty: nextQty,
-          date: new Date().toLocaleString(),
-          referenceType: meta.referenceType,
-          referenceId: meta.referenceId,
-          referenceLabel: meta.referenceLabel,
-          performedBy:
-            meta.performedBy ||
-            currentUserProfile?.name ||
-            (language === 'ar' ? 'مسؤول المستودع' : 'Warehouse Admin'),
-          notes: meta.notes,
-        };
-        setInventoryMovements((mPrev) => [movement, ...mPrev]);
+      if (type === 'IN') {
+        nextQty = prevQty + changeQty;
+      } else if (type === 'OUT') {
+        nextQty = Math.max(0, prevQty - changeQty);
+      } else if (type === 'ADJUST') {
+        nextQty = Math.max(0, changeQty);
+      } else if (type === 'RESERVE') {
+        nextReserved = nextReserved + changeQty;
+      }
 
+      const movement: InventoryMovement = {
+        id: `mov-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        itemId: targetItem.id,
+        itemName: targetItem.nameAr,
+        sku: targetItem.sku,
+        type,
+        quantity: changeQty,
+        previousQty: prevQty,
+        newQty: nextQty,
+        date: new Date().toLocaleString(),
+        referenceType: meta.referenceType,
+        referenceId: meta.referenceId,
+        referenceLabel: meta.referenceLabel,
+        performedBy:
+          meta.performedBy ||
+          currentUserProfile?.name ||
+          (language === 'ar' ? 'مسؤول المستودع' : 'Warehouse Admin'),
+        notes: meta.notes,
+      };
+      setInventoryMovements((mPrev) => [movement, ...mPrev]);
+
+      return prev.map((item) => {
+        if (item.id !== targetItem.id) return item;
         return {
           ...item,
           quantityOnHand: nextQty,
           quantityReserved: nextReserved,
           lastRestockedAt: type === 'IN' ? new Date().toISOString().slice(0, 10) : item.lastRestockedAt,
         };
-      })
-    );
+      });
+    });
   };
 
   const [activeTab, setActiveTab] = useState<NavTab>(() => {
@@ -751,10 +806,36 @@ export default function App() {
           );
         }
       }
+
+      // Handle PWA Shortcuts & Action URL params
+      const action = params.get('action');
+      if (action === 'gps-attendance') {
+        setIsAttendanceModalOpen(true);
+      } else if (action === 'new-breakdown') {
+        setIsQuickBreakdownModalOpen(true);
+      } else if (action === 'technician-portal') {
+        setActiveTab('TECHNICIAN_PORTAL');
+      } else if (action === 'rescue-console') {
+        setIsRescueModalOpen(true);
+      }
     } catch (err) {
-      console.warn('Could not parse digital project URL parameters', err);
+      console.warn('Could not parse digital project or action URL parameters', err);
     }
-  }, []);
+
+    const handleRescueEvent = (e: any) => {
+      const incidentId = e?.detail?.incidentId;
+      if (incidentId) {
+        const found = breakdowns.find(b => b.id === incidentId);
+        if (found) setSelectedRescueBreakdown(found);
+      }
+      setIsRescueModalOpen(true);
+    };
+
+    window.addEventListener('twins:open-rescue-incident', handleRescueEvent);
+    return () => {
+      window.removeEventListener('twins:open-rescue-incident', handleRescueEvent);
+    };
+  }, [breakdowns]);
 
   // Persist customers to localStorage whenever updated
   useEffect(() => {
@@ -1562,7 +1643,10 @@ export default function App() {
                 variant="navbar"
               />
 
-              {/* 5. PostgreSQL Database Status Check (Only icon as database, Green when connected, Red when disconnected) */}
+              {/* 5. PWA Install Button */}
+              <PWAInstallButton isAr={language === 'ar'} variant="header" />
+
+              {/* 6. PostgreSQL Database Status Check */}
               <button
                 type="button"
                 onClick={() => setIsDbModalOpen(true)}
@@ -2444,6 +2528,10 @@ export default function App() {
                 } : b));
                 showToast(language === 'ar' ? `تم إسناد البلاغ للفني ${tech?.name || ''}` : `Assigned to ${tech?.name || 'tech'}`);
               }}
+              onOpenRescueConsole={(bd) => {
+                setSelectedRescueBreakdown(bd || activeEntrapment || breakdowns[0]);
+                setIsRescueModalOpen(true);
+              }}
             />
           </div>
         )}
@@ -2521,6 +2609,14 @@ export default function App() {
             projects={projects}
             customers={customers}
             companySettings={companySettings}
+            onOpenRescueConsole={(bd) => {
+              setSelectedRescueBreakdown(bd || activeEntrapment || breakdowns[0]);
+              setIsRescueModalOpen(true);
+            }}
+            onOpenCabinSticker={(bd) => {
+              setSelectedStickerBreakdown(bd || activeEntrapment || breakdowns[0]);
+              setIsCabinStickerModalOpen(true);
+            }}
           />
         )}
 
@@ -2636,6 +2732,17 @@ export default function App() {
               if (emp) handleOpenAttendanceModal(emp.id);
             }}
             onOpenDrawings={() => setActiveTab('DRAWINGS')}
+            onOpenRescueConsole={(bd) => {
+              setSelectedRescueBreakdown(bd || activeEntrapment || breakdowns[0]);
+              setIsRescueModalOpen(true);
+            }}
+            onOpenCabinSticker={(elev) => {
+              if (elev?.elevatorName) {
+                const bd = breakdowns.find(b => b.elevatorName === elev.elevatorName);
+                if (bd) setSelectedStickerBreakdown(bd);
+              }
+              setIsCabinStickerModalOpen(true);
+            }}
             isAr={language === 'ar'}
           />
         )}
@@ -2810,6 +2917,38 @@ export default function App() {
         customDbUrl={customDbUrl}
         onSaveCustomDbUrl={handleSaveCustomDbUrl}
       />
+
+      {/* Emergency Elevator Passenger Entrapment Rescue Console Modal */}
+      <ElevatorRescueDispatchModal
+        isOpen={isRescueModalOpen}
+        onClose={() => setIsRescueModalOpen(false)}
+        breakdown={selectedRescueBreakdown || activeEntrapment || breakdowns[0]}
+        employees={employees}
+        language={language}
+        onUpdateBreakdown={handleUpdateBreakdown}
+        onOpenCapacitorModal={() => setIsCapacitorModalOpen(true)}
+        onOpenCabinSticker={() => setIsCabinStickerModalOpen(true)}
+      />
+
+      {/* Elevator Cabin Safety Placard & Smart QR Modal */}
+      <ElevatorCabinEmergencyStickerModal
+        isOpen={isCabinStickerModalOpen}
+        onClose={() => setIsCabinStickerModalOpen(false)}
+        breakdown={selectedStickerBreakdown || selectedRescueBreakdown || activeEntrapment || breakdowns[0]}
+        contract={selectedStickerContract || maintenanceContracts[0]}
+        companySettings={companySettings}
+        language={language}
+      />
+
+      {/* Capacitor Native Android (APK) & iOS Build Console Modal */}
+      <CapacitorBuildModal
+        isOpen={isCapacitorModalOpen}
+        onClose={() => setIsCapacitorModalOpen(false)}
+        language={language}
+      />
+
+      {/* Offline Status Connectivity Banner */}
+      <OfflineIndicator isAr={language === 'ar'} />
     </div>
   );
 }

@@ -90,6 +90,16 @@ export interface MaintenanceBreakdown {
   afterPhotos?: string[];
   clientSignatureDataUrl?: string;
   partsVouchers?: DamagedPartsVoucher[];
+  // Emergency Passenger Entrapment & Rapid GPS Dispatch Fields
+  isPassengerEntrapment?: boolean; // حالة احتجاز أشخاص داخل المصعد
+  trappedPassengersCount?: number; // عدد الأشخاص المحتجزين (مثال: 3 أشخاص)
+  trappedDetails?: string;         // تفاصيل الحالة (ذعر، أطفال، كبار سن، انقطاع إضاءة)
+  floorLocation?: string;          // موضع الكابينة (بين الدور 3 و 4)
+  dispatchTimestamp?: string;      // وقت توجيه الفني
+  arrivedTimestamp?: string;       // وقت وصول الفني للموقع
+  rescueCompletedTimestamp?: string; // وقت إتمام فتح الباب وتحرير الركاب بسلام
+  latitude?: number;               // إحداثيات GPS للموقع
+  longitude?: number;
 }
 
 export interface DamagedPartItem {
@@ -380,6 +390,27 @@ const getSampleIsoDate = (offsetDays: number): string => {
 
 export const SAMPLE_BREAKDOWNS: MaintenanceBreakdown[] = [
   {
+    id: 'brk-sos-001',
+    contractId: 'mnt-contract-001',
+    customerName: 'برج الواحة للأعمال والفندقة',
+    customerPhone: '+966 50 888 7766',
+    customerType: 'CONTRACT',
+    siteLocation: 'الرياض - حي العليا - تقاطع التحلية مع الملك فهد',
+    elevatorName: 'مصعد الركاب الرئيسي رقم 2 (بانوراما)',
+    elevatorNumber: 'MNT-2026-SOS-01',
+    reportedAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(), // 14 mins ago
+    description: 'توقف مفاجئ للمصعد واحتجاز 3 ركاب (سيدة وطفلان) بين الطابق 2 و 3 - استغاثة طوارئ عاجلة!',
+    status: 'Reported',
+    priority: 'Emergency',
+    isResolved: false,
+    isPassengerEntrapment: true,
+    trappedPassengersCount: 3,
+    trappedDetails: 'سيدة وطفلان، الكابينة مظلمة وتعمل إضاءة الطوارئ، المحتجزون في حالة هلع وتواصل عبر الإنتركوم',
+    floorLocation: 'بين الطابق الثاني والثالث (ارتفاع 7 أمتار تقريباً)',
+    latitude: 24.6975,
+    longitude: 46.6850,
+  },
+  {
     id: 'brk-001',
     contractId: 'mnt-contract-001',
     customerName: 'شركة الأندلس العقارية',
@@ -469,6 +500,107 @@ export const SAMPLE_BREAKDOWNS: MaintenanceBreakdown[] = [
     assignedTechnicianId: 'emp-tech',
     assignedTechnicianName: 'Twins Technician',
     workPerformed: 'تنظيف سكة التوجيه وتغيير زر الطابق الثاني COP.',
+    isResolved: true,
+  },
+  {
+    id: 'brk-006',
+    contractId: 'mnt-contract-001',
+    customerName: 'أبراج النخيل السكنية',
+    customerPhone: '+966 54 888 2211',
+    customerType: 'CONTRACT',
+    siteLocation: 'الرياض - حي النخيل الغربي',
+    elevatorName: 'مصعد الركاب البرج A (Gearless 1.75 m/s)',
+    elevatorNumber: 'MNT-2026-NKL-01',
+    reportedAt: getSampleIsoDate(-4) + 'T08:10:00Z',
+    resolvedAt: getSampleIsoDate(-4) + 'T08:32:00Z', // 22 minutes!
+    description: 'توقف مفاجئ للمصعد واحتجاز شخصين، تفعيل زر الطوارئ الداخلي.',
+    status: 'Resolved',
+    priority: 'Emergency',
+    isPassengerEntrapment: true,
+    trappedPassengersCount: 2,
+    assignedTechnicianId: 'emp-tech-2',
+    assignedTechnicianName: 'م/ طارق المنصور',
+    technicianNotes: 'وصول فوري خلال 12 دقيقة، فك الاحتجاز يدوياً عبر فرملة الطوارئ واختبار ميكانيكية الباب.',
+    workPerformed: 'تحرير الركاب بسلام، تنظيف مجرى قفل الباب الدور 5 وإعادة ضبط حساس التوقف الميكانيكي.',
+    cost: 0,
+    isResolved: true,
+  },
+  {
+    id: 'brk-007',
+    contractId: 'mnt-contract-002',
+    customerName: 'فندق الفيصلية بلازا',
+    customerPhone: '+966 11 234 5678',
+    customerType: 'CONTRACT',
+    siteLocation: 'الرياض - طريق الملك فهد',
+    elevatorName: 'مصعد الخدمة ونقل الأمتعة Service 1',
+    elevatorNumber: 'MNT-2026-FSL-03',
+    reportedAt: getSampleIsoDate(-3) + 'T10:00:00Z',
+    resolvedAt: getSampleIsoDate(-3) + 'T10:52:00Z', // 52 minutes
+    description: 'عدم انغلاق باب الكابينة بالكامل وظهور كود خطأ E-32 على لوحة التحكم.',
+    status: 'Resolved',
+    priority: 'High',
+    assignedTechnicianId: 'emp-tech-2',
+    assignedTechnicianName: 'م/ طارق المنصور',
+    workPerformed: 'استبدال سير محرك الباب وتعديل مسافة كامة الأمان، واختبار حساس الفوتوسيل الضوئي.',
+    cost: 320,
+    isResolved: true,
+  },
+  {
+    id: 'brk-008',
+    customerName: 'مستشفى الدكتور سليمان الحبيب',
+    customerPhone: '+966 11 444 8899',
+    customerType: 'CONTRACT',
+    siteLocation: 'الرياض - حي الريان',
+    elevatorName: 'مصعد النقالات الطبي Bed Elevator 2',
+    elevatorNumber: 'MNT-2026-HBB-02',
+    reportedAt: getSampleIsoDate(-2) + 'T13:00:00Z',
+    resolvedAt: getSampleIsoDate(-2) + 'T14:18:00Z', // 78 minutes (1h 18m)
+    description: 'اهتزاز قوي عند التوقف في الدور الأرضي وعدم تطابق العتبة.',
+    status: 'Resolved',
+    priority: 'Medium',
+    assignedTechnicianId: 'emp-tech-3',
+    assignedTechnicianName: 'م/ حسام الدين عثمان',
+    workPerformed: 'إعادة معايرة حساس التوقف المغناطيسي وتحديث بارامترات التسارع والتباطؤ بإنفرتر Yaskawa.',
+    cost: 0,
+    isResolved: true,
+  },
+  {
+    id: 'brk-009',
+    customerName: 'مجمع واحة اليرموك التجاري',
+    customerPhone: '+966 50 443 2190',
+    customerType: 'ONE_TIME',
+    siteLocation: 'الرياض - حي اليرموك',
+    elevatorName: 'مصعد البانوراما الرئيسي',
+    elevatorNumber: 'MNT-2026-YRM-01',
+    reportedAt: getSampleIsoDate(-1) + 'T14:00:00Z',
+    resolvedAt: getSampleIsoDate(-1) + 'T16:15:00Z', // 135 minutes (2h 15m)
+    description: 'سقوط بريك الطوارئ وانقطاع تغذية كارت التحكم الإلكتروني.',
+    status: 'Resolved',
+    priority: 'High',
+    assignedTechnicianId: 'emp-tech-3',
+    assignedTechnicianName: 'م/ حسام الدين عثمان',
+    workPerformed: 'إصلاح دائرة التغذية 24V واستبدال كوندنسر تالف في بوردة التحكم Monarch وتجربة المصعد بحمولة كاملة.',
+    cost: 850,
+    isResolved: true,
+  },
+  {
+    id: 'brk-010',
+    contractId: 'mnt-contract-001',
+    customerName: 'شركة الأندلس العقارية',
+    customerPhone: '+966 50 123 4567',
+    customerType: 'CONTRACT',
+    siteLocation: 'الرياض - حي العليا',
+    elevatorName: 'مصعد الركاب الرئيسي رقم 1',
+    elevatorNumber: 'MNT-202609-001',
+    reportedAt: getSampleIsoDate(-6) + 'T09:15:00Z',
+    resolvedAt: getSampleIsoDate(-6) + 'T09:44:00Z', // 29 minutes
+    description: 'جرس الإنذار يعمل باستمرار وزر الطوارئ معلق.',
+    status: 'Resolved',
+    priority: 'Emergency',
+    assignedTechnicianId: 'emp-tech',
+    assignedTechnicianName: 'Twins Technician',
+    workPerformed: 'تسليك واستبدال مفتاح الإنتركوم والزر الضاغط للإنذار وفحص خطوط الاتصال.',
+    cost: 150,
     isResolved: true,
   }
 ];

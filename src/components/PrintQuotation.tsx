@@ -19,6 +19,7 @@ import {
   QrCode,
   Share2,
   FileDown,
+  Sparkles,
 } from 'lucide-react';
 import { exportBomToExcel } from '../utils/excelExport';
 import { exportElementToPdf } from '../utils/pdfExport';
@@ -26,6 +27,7 @@ import { TwinsLogo } from './TwinsLogo';
 import { SaudiRiyalSymbol, SarPrice } from './SaudiRiyalSymbol';
 import { CadPrintPlanDrawing } from './CadPrintPlanDrawing';
 import { CadPrintElevationDrawing } from './CadPrintElevationDrawing';
+import { ARCHITECTURAL_PRESETS } from '../utils/architecturalPresets';
 import { CompanySettings, DEFAULT_COMPANY_SETTINGS } from '../types/settings';
 import { AppLanguage, TRANSLATIONS } from '../utils/translations';
 import { DisbursementStatementView } from './DisbursementStatementView';
@@ -826,6 +828,46 @@ export const PrintQuotation: React.FC<Props> = ({
                 <strong>الاعتماد الهندسي:</strong> تم تدقيق جميع الخلوصات الهندسية ومطابقتها وفق كود البناء السعودي SBC وكود المصاعد EN 81-20/50 والاشتراطات الفنية لشركة {activeSettings.companyNameAr}.
               </div>
             </div>
+
+            {/* 3D Architectural Visualization & Cabin Finishes Section */}
+            {spec.includeRenderInPdf !== false && (
+              <div className="space-y-1.5 pt-3 border-t border-slate-200">
+                <div className="text-[11px] font-bold text-slate-800 flex items-center justify-between px-1">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>3. التصور المعماري ثلاثي الأبعاد لكابينة وبئر المصعد (3D Architectural Visualization &amp; Finishes)</span>
+                  </span>
+                  <span className="font-mono text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-bold">
+                    IMAGEN AI 3D RENDER &bull; CONCEPTUAL
+                  </span>
+                </div>
+
+                <div className="bg-slate-950 rounded-xl overflow-hidden border border-slate-700 shadow-xs">
+                  <div className="relative aspect-16/9 sm:aspect-21/9 max-h-72 w-full overflow-hidden flex items-center justify-center bg-slate-900">
+                    <img
+                      src={spec.architecturalRenderUrl || ARCHITECTURAL_PRESETS[0].svgDataUri}
+                      alt="Architectural 3D Render"
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute top-2 start-2 bg-black/80 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded border border-white/20">
+                      {spec.projectName || 'Twins Elevator'} &bull; {spec.quoteRef}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-slate-900 text-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] border-t border-slate-800">
+                    <span className="font-medium text-slate-300">
+                      <strong>ملاحظة الاعتماد المعماري:</strong> {spec.architecturalRenderCaption || 'تصور معماري ثلاثي الأبعاد مقترح لكابينة وتشطيبات المصعد المعتمدة وفق كود SBC 801.'}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0 text-slate-400">
+                      <span>CW {CW} &times; CD {CD} mm</span>
+                      <span>&bull;</span>
+                      <span className="text-amber-300 font-bold">{getCabinFinishAr()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -20,7 +20,11 @@ import {
   Table as TableIcon,
   Filter,
   X,
-  Calendar
+  Calendar,
+  Flame,
+  Radio,
+  Compass,
+  QrCode
 } from 'lucide-react';
 import { AppLanguage, TRANSLATIONS } from '../utils/translations';
 import { MaintenanceBreakdown, BreakdownStatus, BreakdownPriority, BreakdownCustomerType } from '../types/maintenance';
@@ -41,6 +45,8 @@ interface MaintenanceBreakdownsViewProps {
   projects: ElevatorSpecification[];
   customers: Customer[];
   companySettings?: CompanySettings;
+  onOpenRescueConsole?: (breakdown?: MaintenanceBreakdown) => void;
+  onOpenCabinSticker?: (breakdown?: MaintenanceBreakdown) => void;
 }
 
 const STATUS_CONFIG: Record<BreakdownStatus, { labelAr: string; labelEn: string; badgeClass: string; dotClass: string }> = {
@@ -67,9 +73,16 @@ export const MaintenanceBreakdownsView: React.FC<MaintenanceBreakdownsViewProps>
   projects,
   customers,
   companySettings = DEFAULT_COMPANY_SETTINGS,
+  onOpenRescueConsole,
+  onOpenCabinSticker,
 }) => {
   const isAr = language === 'ar';
   
+  // Find active passenger entrapment emergency
+  const activeEntrapment = useMemo(() => {
+    return breakdowns.find(b => !b.isResolved && (b.isPassengerEntrapment || b.description.includes('احتجاز')));
+  }, [breakdowns]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<BreakdownStatus | 'ALL'>('ALL');
   const [customerTypeFilter, setCustomerTypeFilter] = useState<'ALL' | 'CONTRACT' | 'ONE_TIME'>('ALL');
@@ -254,6 +267,61 @@ export const MaintenanceBreakdownsView: React.FC<MaintenanceBreakdownsViewProps>
           </div>
         </div>
       </div>
+
+      {/* 1.5 Emergency Passenger Entrapment SOS Banner */}
+      {activeEntrapment && (
+        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white rounded-2xl p-4 sm:p-5 shadow-xl shadow-red-600/30 border border-red-400/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+              <Flame className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-white text-red-700 font-black text-[10px] uppercase">
+                  {isAr ? 'نداء استغاثة عاجل' : 'SOS Emergency'}
+                </span>
+                <span className="text-xs font-bold text-red-100">
+                  {isAr ? 'حالة احتجاز ركاب بالمصعد!' : 'Trapped Passengers in Elevator!'}
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black mt-0.5">
+                {activeEntrapment.elevatorName} — {activeEntrapment.customerName}
+              </h3>
+              <p className="text-xs text-red-100/90 flex items-center gap-2 mt-1">
+                <span>📍 {activeEntrapment.siteLocation}</span>
+                {activeEntrapment.trappedPassengersCount && (
+                  <span>• 👥 {activeEntrapment.trappedPassengersCount} {isAr ? 'أشخاص محتجزين' : 'passengers'}</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0 justify-end flex-wrap">
+            {onOpenCabinSticker && (
+              <button
+                type="button"
+                onClick={() => onOpenCabinSticker(activeEntrapment)}
+                className="w-full md:w-auto px-4 py-2.5 bg-red-800/80 hover:bg-red-800 text-white rounded-xl text-xs sm:text-sm font-bold transition-all border border-red-400/40 cursor-pointer flex items-center justify-center gap-1.5"
+                title={isAr ? 'طباعة ومعاينة ملصق طوارئ واستغاثة الكابينة' : 'Print Cabin Emergency Placard'}
+              >
+                <QrCode className="w-4 h-4 text-amber-300" />
+                <span>{isAr ? 'ملصق الكابينة وQR' : 'Cabin Decal & QR'}</span>
+              </button>
+            )}
+
+            {onOpenRescueConsole && (
+              <button
+                type="button"
+                onClick={() => onOpenRescueConsole(activeEntrapment)}
+                className="w-full md:w-auto px-5 py-2.5 bg-white text-red-700 hover:bg-red-50 rounded-xl text-xs sm:text-sm font-black transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+              >
+                <Radio className="w-4 h-4 text-red-600 animate-spin" />
+                <span>{isAr ? 'فتح غرفة عمليات الإنقاذ وتوجيه الفنيين' : 'Open Rescue Console'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. KPI Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -615,12 +683,37 @@ export const MaintenanceBreakdownsView: React.FC<MaintenanceBreakdownsViewProps>
                 </div>
 
                 {/* Actions Toolbar */}
-                <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100">
+                <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100 flex-wrap">
+                  {/* Emergency Rescue Console Button for Entrapments / Emergencies */}
+                  {(breakdown.isPassengerEntrapment || breakdown.priority === 'Emergency') && onOpenRescueConsole && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenRescueConsole(breakdown)}
+                      className="py-1.5 px-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-black transition-colors flex items-center justify-center gap-1 shadow-sm cursor-pointer active:scale-95 animate-pulse"
+                      title={isAr ? 'فتح غرفة عمليات الإنقاذ وتوجيه أقرب فني' : 'Open Emergency Rescue Console'}
+                    >
+                      <Radio className="w-3.5 h-3.5 text-white" />
+                      <span>{isAr ? 'غرفة الإنقاذ' : 'Rescue'}</span>
+                    </button>
+                  )}
+
+                  {/* Cabin Safety Placard & QR */}
+                  {onOpenCabinSticker && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenCabinSticker(breakdown)}
+                      className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-200 transition-colors"
+                      title={isAr ? 'طباعة ومعاينة ملصق طوارئ واستغاثة الكابينة ورمز QR' : 'Cabin Safety Placard & QR'}
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-amber-600" />
+                    </button>
+                  )}
+
                   {/* Print Repair Report Button */}
                   <button
                     type="button"
                     onClick={() => handleOpenReportModal(breakdown)}
-                    className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                    className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 min-w-[75px]"
                     title={isAr ? 'طباعة تقرير وأمر إصلاح العطل' : 'Print Repair Report'}
                   >
                     <Printer className="w-3.5 h-3.5 text-rose-600" />
@@ -726,6 +819,29 @@ export const MaintenanceBreakdownsView: React.FC<MaintenanceBreakdownsViewProps>
 
                       <td className="p-3 text-end">
                         <div className="flex items-center justify-end gap-1">
+                          {(b.isPassengerEntrapment || b.priority === 'Emergency') && onOpenRescueConsole && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenRescueConsole(b)}
+                              className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-black transition-colors flex items-center gap-1 cursor-pointer active:scale-95 animate-pulse"
+                              title={isAr ? 'فتح غرفة عمليات الإنقاذ وتوجيه الفنيين' : 'Rescue Console'}
+                            >
+                              <Radio className="w-3 h-3 text-white" />
+                              <span>{isAr ? 'إنقاذ' : 'Rescue'}</span>
+                            </button>
+                          )}
+
+                          {onOpenCabinSticker && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenCabinSticker(b)}
+                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-md transition-colors border border-amber-200"
+                              title={isAr ? 'ملصق طوارئ الكابينة وQR' : 'Cabin Decal'}
+                            >
+                              <QrCode className="w-3.5 h-3.5 text-amber-600" />
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => handleOpenReportModal(b)}

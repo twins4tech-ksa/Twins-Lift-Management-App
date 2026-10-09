@@ -1,0 +1,26 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.twins4tech.liftmanager',
+  appName: 'Twins Lift Manager',
+  webDir: 'dist',
+  plugins: {
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_emergency',
+      iconColor: '#DC2626',
+      sound: 'emergency_siren.wav',
+    },
+    Geolocation: {
+      // Config for continuous GPS
+    },
+  },
+  server: {
+    androidScheme: 'https',
+    cleartext: true,
+  },
+};
+
+export default config;

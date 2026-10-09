@@ -5,15 +5,27 @@ import { Award, Briefcase, TrendingUp, DollarSign, Target, Calendar, Wrench, Shi
 import { useInteractiveTable, InteractiveColumn } from '../hooks/useInteractiveTable';
 import { InteractiveTableHeader, TableControlBar } from './InteractiveTableHeader';
 import { MonthlyTechnicianKpi } from '../utils/technicianKpi';
+import { MaintenanceBreakdown } from '../types/maintenance';
+import { 
+  calculateTechniciansResolutionMetrics, 
+  TechnicianResolutionMetrics 
+} from '../utils/technicianResolutionAnalytics';
 
 interface EmployeeReportsProps {
   employees: Employee[];
   stats: any;
   isAr: boolean;
   technicianKpis?: MonthlyTechnicianKpi[];
+  breakdowns?: MaintenanceBreakdown[];
 }
 
-export default function EmployeeReports({ employees, stats, isAr, technicianKpis = [] }: EmployeeReportsProps) {
+export default function EmployeeReports({ 
+  employees, 
+  stats, 
+  isAr, 
+  technicianKpis = [],
+  breakdowns = []
+}: EmployeeReportsProps) {
   const salesReps = useMemo(() => employees.filter(e => e.role === 'SALES_REP'), [employees]);
   const technicians = useMemo(() => employees.filter(e => e.role === 'MAINTENANCE_TECH'), [employees]);
 
@@ -23,6 +35,14 @@ export default function EmployeeReports({ employees, stats, isAr, technicianKpis
     technicianKpis.forEach(k => map.set(k.technicianId, k));
     return map;
   }, [technicianKpis]);
+
+  // Map technician resolution metrics (on-time rate and repeated breakdowns)
+  const resolutionMap = useMemo(() => {
+    const overview = calculateTechniciansResolutionMetrics(employees, breakdowns, [], 'ALL');
+    const map = new Map<string, TechnicianResolutionMetrics>();
+    overview.techniciansMetrics.forEach(tm => map.set(tm.technicianId, tm));
+    return map;
+  }, [employees, breakdowns]);
 
   // Sales Reps Interactive Columns
   const repColumns: InteractiveColumn<Employee>[] = useMemo(() => [
@@ -276,6 +296,70 @@ export default function EmployeeReports({ employees, stats, isAr, technicianKpis
       },
     },
     {
+      id: 'on_time_rate',
+      header: isAr ? 'معدل الإنجاز في الوقت المحدد' : 'On-Time Completion Rate',
+      headerAr: 'معدل الإنجاز في الوقت المحدد',
+      headerEn: 'On-Time Completion Rate',
+      align: 'center',
+      sortable: true,
+      accessor: (tech) => resolutionMap.get(tech.id)?.onTimeCompletionRatePct ?? 100,
+      renderCell: (tech) => {
+        const res = resolutionMap.get(tech.id);
+        const rate = res ? res.onTimeCompletionRatePct : 100;
+        const total = res?.totalResolvedBreakdowns || 0;
+        const onTime = res?.onTimeResolvedCount || 0;
+        return (
+          <div className="font-mono text-xs">
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+              rate >= 90
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : rate >= 75
+                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                : 'bg-rose-50 text-rose-800 border-rose-300'
+            }`}>
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              <span>{rate}%</span>
+            </span>
+            <div className="text-[10px] text-slate-400 font-sans mt-0.5">
+              {total > 0 ? `${onTime}/${total}` : (isAr ? 'لا بلاغات' : 'No tickets')}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'repeated_breakdowns',
+      header: isAr ? 'عدد الأعطال المتكررة لنفس المصعد' : 'Repeated Lift Faults',
+      headerAr: 'عدد الأعطال المتكررة لنفس المصعد',
+      headerEn: 'Repeated Lift Faults',
+      align: 'center',
+      sortable: true,
+      accessor: (tech) => resolutionMap.get(tech.id)?.repeatedBreakdownsCount ?? 0,
+      renderCell: (tech) => {
+        const res = resolutionMap.get(tech.id);
+        const count = res?.repeatedBreakdownsCount || 0;
+        const liftsCount = res?.repeatedElevatorsCount || 0;
+        if (count === 0) {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              <span>{isAr ? '0 (لا تكرار 🟢)' : '0 (None 🟢)'}</span>
+            </span>
+          );
+        }
+        return (
+          <div className="inline-flex flex-col items-center">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
+              <AlertTriangle className="w-3 h-3 text-amber-600" />
+              <span>{isAr ? `${count} أعطال متكررة` : `${count} repeat`}</span>
+            </span>
+            <span className="text-[10px] text-amber-700 font-sans mt-0.5">
+              {isAr ? `في ${liftsCount} مصعد` : `in ${liftsCount} lifts`}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
       id: 'kpi_monthly',
       header: isAr ? 'تقييم الـ KPI الشهري (12 صيانة / 5 أعطال)' : 'Monthly KPI & Grade',
       headerAr: 'تقييم الـ KPI الشهري (12 صيانة / 5 أعطال)',
@@ -304,7 +388,7 @@ export default function EmployeeReports({ employees, stats, isAr, technicianKpis
         );
       },
     },
-  ], [isAr, stats, kpiMap]);
+  ], [isAr, stats, kpiMap, resolutionMap]);
 
   const techsTable = useInteractiveTable({
     tableId: 'techs_reports_table',

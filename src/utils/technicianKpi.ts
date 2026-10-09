@@ -26,6 +26,13 @@ export interface MonthlyTechnicianKpi {
   dailyBreakdownsAvg: number;
   breakdownsAchievementPct: number;
 
+  // Additional Resolution Performance Metrics (سجلات الإنجاز)
+  onTimeCompletionRatePct: number; // معدل الإنجاز في الوقت المحدد
+  onTimeResolvedCount: number;
+  repeatedBreakdownsCount: number; // عدد الأعطال المتكررة لنفس المصعد
+  repeatedElevatorsCount: number;
+  avgResolutionMinutes?: number;
+
   // Composite KPI & Grading ("وما اكثر فله درجات اعلي")
   compositeScore: number; // Total points (can exceed 100)
   grade: 'A++' | 'A+' | 'A' | 'B+' | 'B' | 'C';
@@ -154,6 +161,51 @@ export function calculateMonthlyTechnicianKpis(
       }
     });
 
+    // 3. حساب مؤشرات سرعة الإنجاز بالموعد وتكرار الأعطال لنفس المصعد (سجلات الإنجاز)
+    const techResolvedList = breakdowns.filter((b) => {
+      const isThisTech = b.assignedTechnicianId === tech.id || 
+        (b.assignedTechnicianName && b.assignedTechnicianName.includes(tech.name));
+      const isCompleted = b.isResolved || b.status === 'Resolved' || Boolean(b.resolvedAt);
+      return isThisTech && isCompleted;
+    });
+
+    let onTimeResolvedCount = 0;
+    let totalMinutesSum = 0;
+    const elevatorCountMap = new Map<string, number>();
+
+    techResolvedList.forEach((b) => {
+      const repDate = b.reportedAt ? new Date(b.reportedAt).getTime() : Date.now();
+      const resDate = b.resolvedAt ? new Date(b.resolvedAt).getTime() : (b.rescueCompletedTimestamp ? new Date(b.rescueCompletedTimestamp).getTime() : repDate + 60 * 60 * 1000);
+      let diffMins = Math.round((resDate - repDate) / (1000 * 60));
+      if (isNaN(diffMins) || diffMins <= 0) diffMins = 45;
+      if (diffMins > 48 * 60) diffMins = 120;
+      totalMinutesSum += diffMins;
+
+      const slaLimit = b.priority === 'Emergency' ? 30 : b.priority === 'High' ? 120 : b.priority === 'Medium' ? 240 : 480;
+      if (diffMins <= slaLimit) {
+        onTimeResolvedCount++;
+      }
+
+      const elevKey = (b.elevatorNumber || b.elevatorName || 'UNKNOWN').trim().toLowerCase();
+      elevatorCountMap.set(elevKey, (elevatorCountMap.get(elevKey) || 0) + 1);
+    });
+
+    const totalResolved = techResolvedList.length;
+    const onTimeCompletionRatePct = totalResolved > 0 
+      ? Number(((onTimeResolvedCount / totalResolved) * 100).toFixed(1)) 
+      : 100;
+
+    let repeatedBreakdownsCount = 0;
+    let repeatedElevatorsCount = 0;
+    elevatorCountMap.forEach((count) => {
+      if (count > 1) {
+        repeatedBreakdownsCount += (count - 1);
+        repeatedElevatorsCount += 1;
+      }
+    });
+
+    const avgResolutionMinutes = totalResolved > 0 ? Math.round(totalMinutesSum / totalResolved) : 0;
+
     // الأهداف الشهرية:
     // صيانة: 12 زيارة يومياً × أيام العمل
     // أعطال: 5 إصلاحات يومياً × أيام العمل
@@ -202,6 +254,11 @@ export function calculateMonthlyTechnicianKpis(
       resolvedBreakdownsCount,
       dailyBreakdownsAvg,
       breakdownsAchievementPct,
+      onTimeCompletionRatePct,
+      onTimeResolvedCount,
+      repeatedBreakdownsCount,
+      repeatedElevatorsCount,
+      avgResolutionMinutes,
       compositeScore,
       ...gradeInfo,
     };
