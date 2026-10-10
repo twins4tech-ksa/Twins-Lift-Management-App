@@ -58,6 +58,8 @@ interface DesktopSidebarProps {
   inventoryCount?: number;
   lowStockItemsCount?: number;
   onNewInventoryItem?: () => void;
+  activeCompanyName?: string;
+  activeBranchName?: string;
 }
 
 export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
@@ -86,6 +88,8 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   expiringContractsCount,
   inventoryCount = 0,
   lowStockItemsCount = 0,
+  activeCompanyName,
+  activeBranchName,
 }) => {
   const isAr = language === 'ar';
 
@@ -220,6 +224,25 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             )}
           </div>
         </div>
+
+        {activeCompanyName && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('SAAS_PORTAL')}
+            className="w-full mt-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 text-indigo-900 flex items-center justify-between text-[11px] font-bold transition-colors cursor-pointer"
+            title={isAr ? 'الشركة الحالية - انقر لفتح لوحة الشركات SaaS' : 'Active Tenant - Click to open SaaS Hub'}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Globe className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span className="truncate">{activeCompanyName}</span>
+            </div>
+            {activeBranchName && (
+              <span className="text-[10px] text-indigo-600 font-normal shrink-0 truncate max-w-[80px]">
+                {activeBranchName}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* 2. Scrollable Navigation List - Fully expanded downwards with all choices visible */}
@@ -378,6 +401,15 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               labelAr="إعدادات الشركة والهوية"
               labelEn="Company Settings"
               iconColor="text-slate-500"
+            />
+            <NavItem
+              tab="SAAS_PORTAL"
+              icon={Globe}
+              labelAr="لوحة تحكم الشركات (SaaS)"
+              labelEn="Multi-Company SaaS"
+              iconColor="text-indigo-600"
+              badge="SaaS"
+              badgeColor="bg-indigo-100 text-indigo-800 border-indigo-300 font-bold"
             />
           </>
         )}

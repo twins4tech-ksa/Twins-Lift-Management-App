@@ -99,6 +99,16 @@ import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { GlobalSearchBar } from './components/GlobalSearchBar';
 import { exportElementToPdf } from './utils/pdfExport';
 import { RenewalQuotationEmailModal } from './components/RenewalQuotationEmailModal';
+import { SaaSManagementView } from './components/SaaSManagementView';
+import { CompanyTenant, CompanyBranch, CompanyWarehouse, ContaboVpsConfig } from './types/saas';
+import {
+  getStoredTenants,
+  getStoredBranches,
+  getStoredWarehouses,
+  getActiveTenantId,
+  setActiveTenantId,
+  getStoredContaboConfig,
+} from './utils/saasStorage';
 
 const STORAGE_KEY_PROJECTS = 'vvt_elevator_projects_v1';
 const STORAGE_KEY_ACTIVE_SPEC = 'vvt_elevator_active_spec_v1';
@@ -117,6 +127,25 @@ const STORAGE_KEY_INVENTORY_MOVEMENTS = 'vvt_elevator_inventory_movements_v1';
 const STORAGE_KEY_VENDORS = 'vvt_elevator_vendors_v1';
 
 export default function App() {
+  // SaaS Multi-Company State
+  const [saasTenants, setSaasTenants] = useState<CompanyTenant[]>(() => getStoredTenants());
+  const [saasBranches, setSaasBranches] = useState<CompanyBranch[]>(() => getStoredBranches());
+  const [saasWarehouses, setSaasWarehouses] = useState<CompanyWarehouse[]>(() => getStoredWarehouses());
+  const [activeTenantId, setActiveTenantIdState] = useState<string>(() => getActiveTenantId());
+  const [contaboConfig, setContaboConfig] = useState<ContaboVpsConfig>(() => getStoredContaboConfig());
+
+  const currentActiveTenant = useMemo(() => {
+    return saasTenants.find((t) => t.id === activeTenantId) || saasTenants[0];
+  }, [saasTenants, activeTenantId]);
+
+  const activeTenantBranches = useMemo(() => {
+    return saasBranches.filter((b) => b.companyId === currentActiveTenant?.id);
+  }, [saasBranches, currentActiveTenant]);
+
+  const activeTenantWarehouses = useMemo(() => {
+    return saasWarehouses.filter((w) => w.companyId === currentActiveTenant?.id);
+  }, [saasWarehouses, currentActiveTenant]);
+
   // Company and Branding Settings
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
     try {
@@ -127,6 +156,29 @@ export default function App() {
     }
     return DEFAULT_COMPANY_SETTINGS;
   });
+
+  const handleSelectActiveTenant = (newTenantId: string) => {
+    setActiveTenantId(newTenantId);
+    setActiveTenantIdState(newTenantId);
+    const found = saasTenants.find((t) => t.id === newTenantId);
+    if (found) {
+      setCompanySettings((prev) => ({
+        ...prev,
+        companyNameAr: found.nameAr,
+        companyNameEn: found.nameEn,
+        commercialRegistration: found.commercialReg,
+        commercialReg: found.commercialReg,
+        vatNumber: found.vatNumber,
+        taxNumber: found.vatNumber,
+        phone: found.phone,
+        email: found.email,
+        website: found.website || prev.website,
+        addressAr: found.address || found.city,
+        addressEn: found.city,
+        address: found.address || found.city,
+      }));
+    }
+  };
 
   // App Language: Default to Arabic ('ar') as requested by user
   const [language, setLanguage] = useState<AppLanguage>(() => {
@@ -1669,6 +1721,29 @@ export default function App() {
                   }`}
                 />
               </button>
+
+              {/* 7. SaaS Multi-Company Tenant Hub Button */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('SAAS_PORTAL')}
+                className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer border shadow-xs text-xs font-bold ${
+                  activeTab === 'SAAS_PORTAL'
+                    ? 'bg-indigo-600 text-white border-indigo-400'
+                    : 'bg-indigo-950/60 text-indigo-200 border-indigo-500/40 hover:bg-indigo-900/60 hover:text-white'
+                }`}
+                title={language === 'ar' ? `لوحة تحكم الشركات السحابية (الشركة النشطة: ${currentActiveTenant?.nameAr})` : `SaaS Companies Hub (Active: ${currentActiveTenant?.nameAr})`}
+              >
+                <Globe className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span className="hidden md:inline font-mono text-[11px] font-black text-amber-300">
+                  {currentActiveTenant?.code}
+                </span>
+                <span className="hidden xl:inline max-w-[120px] truncate text-[11px]">
+                  {currentActiveTenant?.nameAr}
+                </span>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-500/30 text-indigo-200">
+                  SaaS
+                </span>
+              </button>
             </div>
 
             {/* CENTER: Global Search Bar */}
@@ -1772,6 +1847,8 @@ export default function App() {
             inventoryCount={inventory.length}
             lowStockItemsCount={inventory.filter(i => i.quantityOnHand <= i.minStockLevel).length}
             onNewInventoryItem={() => setActiveTab('INVENTORY')}
+            activeCompanyName={currentActiveTenant?.nameAr}
+            activeBranchName={activeTenantBranches.find(b => b.isHeadquarter)?.name || activeTenantBranches[0]?.name}
           />
         )}
 
@@ -2167,6 +2244,21 @@ export default function App() {
                         >
                           <SettingsIcon className="w-5 h-5 text-amber-600" />
                           {language === 'ar' ? 'إعدادات الشركة' : 'Settings & Branding'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveTab('SAAS_PORTAL'); setIsMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                            activeTab === 'SAAS_PORTAL'
+                              ? 'bg-indigo-600 text-white shadow-xs font-semibold'
+                              : 'text-slate-700 hover:text-indigo-700 hover:bg-slate-100 font-medium'
+                          }`}
+                        >
+                          <Globe className="w-5 h-5 text-indigo-600" />
+                          <div className="flex items-center justify-between flex-1">
+                            <span>{language === 'ar' ? 'لوحة تحكم الشركات (SaaS)' : 'SaaS Companies Hub'}</span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800">SaaS</span>
+                          </div>
                         </button>
                       </>
                     )}
@@ -2762,6 +2854,23 @@ export default function App() {
             onGoHome={handleGoHome}
             onNavigateTab={(tab) => setActiveTab(tab as any)}
             onShowToast={showToast}
+          />
+        )}
+
+        {/* Tab 10: SaaS Multi-Tenant Management Portal */}
+        {activeTab === 'SAAS_PORTAL' && (
+          <SaaSManagementView
+            tenants={saasTenants}
+            branches={saasBranches}
+            warehouses={saasWarehouses}
+            activeTenantId={activeTenantId}
+            contaboConfig={contaboConfig}
+            onUpdateTenants={(updated) => setSaasTenants(updated)}
+            onUpdateBranches={(updated) => setSaasBranches(updated)}
+            onUpdateWarehouses={(updated) => setSaasWarehouses(updated)}
+            onSelectActiveTenant={handleSelectActiveTenant}
+            onUpdateContaboConfig={(updated) => setContaboConfig(updated)}
+            isAr={language === 'ar'}
           />
         )}
       </main>

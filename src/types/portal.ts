@@ -28,6 +28,7 @@ export interface RolePrivileges {
   canViewCadDrawings: boolean;        // استعراض المخططات الهندسية ونظام التعليق
   canCheckInGps: boolean;             // تسجيل الحضور الميداني بالبصمة الجغرافية
   canViewAllDepartmentRecords?: boolean; // مشاهدة كافة سجلات وإضافات القسم المصرح به
+  canManageSaaS?: boolean;            // إدارة المنظومة السحابية والشركات المتعددة والفروع
 }
 
 export interface UserProfile {
@@ -76,6 +77,7 @@ export const ROLE_PRIVILEGES_MAP: Record<UserPortalRole, RolePrivileges> = {
     canViewCadDrawings: true,
     canCheckInGps: true,
     canViewAllDepartmentRecords: true,
+    canManageSaaS: true,
   },
   TECHNICIAN: {
     role: 'TECHNICIAN',

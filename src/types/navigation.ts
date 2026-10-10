@@ -20,4 +20,5 @@ export type NavTab =
   | 'SAFETY_CERTIFICATES'      // شهادات السلامة ورخص الدفاع المدني
   | 'INTERACTIVE_MAP'          // الخريطة التفاعلية للمواقع والمشاريع
   | 'PRINT'                    // طباعة العرض الفني
-  | 'SETTINGS';                // إعدادات الشركة والتسعير
+  | 'SETTINGS'                 // إعدادات الشركة والتسعير
+  | 'SAAS_PORTAL';             // لوحة تحكم المنظومة السحابية والشركات (SaaS Multi-Company Hub)
