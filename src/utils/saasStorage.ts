@@ -401,3 +401,58 @@ server {
 }
 `;
 }
+
+export function generateContaboAllInOneScript(tenants: CompanyTenant[], config: ContaboVpsConfig): string {
+  const dockerCompose = generateContaboDockerCompose(tenants, config);
+  const postgresInit = generatePostgresInitScript(tenants);
+  const envFile = generateContaboEnvFile(config);
+  const nginxConf = generateContaboNginxConfig(config);
+
+  return `#!/bin/bash
+# =================================================================
+# Twins Elevators Multi-Tenant SaaS - Complete Automated Contabo Setup
+# Run this on your clean Contabo VPS to auto-create /opt/twins-saas,
+# write all configuration files, and launch all tenant databases!
+# =================================================================
+set -e
+
+echo "=== [1/6] Preparing Application Directories in /opt/twins-saas ==="
+mkdir -p /opt/twins-saas/backups
+mkdir -p /opt/twins-saas/certbot/conf
+mkdir -p /opt/twins-saas/certbot/www
+cd /opt/twins-saas
+
+echo "=== [2/6] Writing docker-compose.yml ==="
+cat << 'EOF' > /opt/twins-saas/docker-compose.yml
+${dockerCompose}
+EOF
+
+echo "=== [3/6] Writing .env File ==="
+cat << 'EOF' > /opt/twins-saas/.env
+${envFile}
+EOF
+
+echo "=== [4/6] Writing init-multiple-databases.sh ==="
+cat << 'EOF' > /opt/twins-saas/init-multiple-databases.sh
+${postgresInit}
+EOF
+chmod +x /opt/twins-saas/init-multiple-databases.sh
+
+echo "=== [5/6] Writing nginx.conf ==="
+cat << 'EOF' > /opt/twins-saas/nginx.conf
+${nginxConf}
+EOF
+
+echo "=== [6/6] Launching Containers & Multi-Tenant Databases ==="
+docker compose pull || true
+docker compose up -d --build
+
+echo ""
+echo "==================================================================="
+echo "  All Configuration Files Written & Containers Started!"
+echo "  Twins Elevators Multi-Tenant SaaS is now RUNNING on Contabo VPS!"
+echo "  Server IP: ${config.vpsIp}"
+echo "  Domain: https://${config.domain}"
+echo "==================================================================="
+`;
+}

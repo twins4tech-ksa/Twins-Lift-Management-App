@@ -60,6 +60,7 @@ import {
   generateContaboDeployScript,
   generateContaboEnvFile,
   generateContaboNginxConfig,
+  generateContaboAllInOneScript,
 } from '../utils/saasStorage';
 
 interface SaaSManagementViewProps {
@@ -114,6 +115,9 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
 
   // Copied alert notification
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Method tab for uploading files to /opt/twins-saas on VPS
+  const [uploadMethodTab, setUploadMethodTab] = useState<'AUTO_SCRIPT' | 'SFTP' | 'GIT'>('AUTO_SCRIPT');
 
   // Active Company Object
   const currentActiveTenant = useMemo(() => {
@@ -406,6 +410,19 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
   const deployScriptContent = useMemo(() => generateContaboDeployScript(contaboConfig), [contaboConfig]);
   const envContent = useMemo(() => generateContaboEnvFile(contaboConfig), [contaboConfig]);
   const nginxContent = useMemo(() => generateContaboNginxConfig(contaboConfig), [contaboConfig]);
+  const allInOneScriptContent = useMemo(() => generateContaboAllInOneScript(tenants, contaboConfig), [tenants, contaboConfig]);
+
+  const handleDownloadFile = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12" dir={isAr ? 'rtl' : 'ltr'}>
@@ -1260,49 +1277,189 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
           </div>
 
           {/* Step by Step Deployment Guide on Contabo */}
-          <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl space-y-4">
-            <h4 className="font-black text-sm text-amber-400 flex items-center gap-2">
-              <Terminal className="w-4 h-4" />
-              <span>{isAr ? 'خطوات التثبيت على سيرفر Contabo VPS عبر SSH' : 'Contabo VPS Deployment Commands'}</span>
-            </h4>
+          <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+              <h4 className="font-black text-sm text-amber-400 flex items-center gap-2">
+                <Terminal className="w-4 h-4" />
+                <span>{isAr ? 'خطوات التثبيت ورفع الملفات على سيرفر Contabo VPS عبر SSH' : 'Contabo VPS Deployment & File Setup'}</span>
+              </h4>
+              <span className="text-[11px] font-sans text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg">
+                {isAr ? 'مسار المشروع المعتمد: /opt/twins-saas' : 'Project Path: /opt/twins-saas'}
+              </span>
+            </div>
 
-            <div className="space-y-3 font-mono text-xs">
-              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                <div className="text-slate-400 text-[11px] font-sans">1. تسجيل الدخول عبر SSH إلى سيرفر Contabo:</div>
-                <div className="text-emerald-400 flex items-center justify-between">
-                  <span>ssh root@{contaboConfig.vpsIp}</span>
+            <div className="space-y-4 font-mono text-xs">
+              {/* Step 1: SSH Login */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                <div className="text-slate-400 text-[11px] font-sans flex items-center justify-between">
+                  <span>{isAr ? '1. تسجيل الدخول عبر SSH إلى سيرفر Contabo:' : '1. Connect via SSH to Contabo VPS:'}</span>
+                  <span className="text-slate-500 font-mono text-[10px]">Port: 22</span>
+                </div>
+                <div className="text-emerald-400 flex items-center justify-between bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/60">
+                  <span className="select-all">ssh root@{contaboConfig.vpsIp}</span>
                   <button
                     type="button"
                     onClick={() => handleCopy(`ssh root@${contaboConfig.vpsIp}`, 'step1')}
-                    className="text-slate-400 hover:text-white"
+                    className="text-slate-400 hover:text-white cursor-pointer px-2 py-0.5"
+                    title={isAr ? 'نسخ الأمر' : 'Copy Command'}
                   >
                     {copiedKey === 'step1' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
 
-              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                <div className="text-slate-400 text-[11px] font-sans">2. إنشاء مجلد المشروع ونسخ الملفات:</div>
-                <div className="text-emerald-400 flex items-center justify-between">
-                  <span>mkdir -p /opt/twins-saas && cd /opt/twins-saas</span>
+              {/* Step 2: Clarification and Methods to Put Files into /opt/twins-saas */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-indigo-500/30 space-y-3 font-sans">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <div>
+                    <div className="text-amber-300 font-bold text-xs flex items-center gap-1.5">
+                      <HardDrive className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>{isAr ? '2. إنشاء المجلد ورفع / توليد الملفات بداخله:' : '2. Create Folder & Upload / Generate Files:'}</span>
+                    </div>
+                    <p className="text-slate-400 text-[11px] mt-1 leading-relaxed">
+                      {isAr
+                        ? '💡 هل يتم رفع ملفات بهذا المجلد بعد إنشائه؟ نعم! المجلد يحتاج لملفات التشغيل وقواعد البيانات. نوفر لك 3 خيارات أسهلها الخيار الأول بنقرة زر:'
+                        : '💡 Are files uploaded to this folder? Yes! It requires compose, configs, & DB scripts. Choose your preferred method below:'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Upload Method Selector Tabs */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
                   <button
                     type="button"
-                    onClick={() => handleCopy(`mkdir -p /opt/twins-saas && cd /opt/twins-saas`, 'step2')}
-                    className="text-slate-400 hover:text-white"
+                    onClick={() => setUploadMethodTab('AUTO_SCRIPT')}
+                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors ${
+                      uploadMethodTab === 'AUTO_SCRIPT'
+                        ? 'bg-amber-500 text-slate-950 shadow-sm'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
                   >
-                    {copiedKey === 'step2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <Play className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'الخيار 1 (الآلي الأسهل): سكريبت شامل دون نقل يدوي' : 'Option 1 (Easiest): All-In-One Script'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUploadMethodTab('SFTP')}
+                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors ${
+                      uploadMethodTab === 'SFTP'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    <HardDrive className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'الخيار 2: رفع الملفات عبر SFTP / WinSCP' : 'Option 2: SFTP / WinSCP Upload'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUploadMethodTab('GIT')}
+                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors ${
+                      uploadMethodTab === 'GIT'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    <GitBranch className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'الخيار 3: استنساخ Git Clone' : 'Option 3: Git Clone'}</span>
                   </button>
                 </div>
+
+                {/* Method 1: All-In-One Automated Script */}
+                {uploadMethodTab === 'AUTO_SCRIPT' && (
+                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-amber-500/20 space-y-2.5 text-xs">
+                    <p className="text-amber-200 text-[11px] leading-relaxed">
+                      {isAr
+                        ? '⚡ لا داعي لرفع ملفات يدوياً! هذا الأمر يقوم تلقائياً بإنشاء المجلد (/opt/twins-saas) وتوليد كافة ملفات docker-compose و .env وتهيئة قواعد بيانات جميع الشركات وتشغيل الحاويات فوراً:'
+                        : '⚡ No manual file uploads needed! This command auto-creates /opt/twins-saas, writes all configs & DBs, and starts Docker containers instantly:'}
+                    </p>
+                    <div className="text-amber-300 font-mono text-[11px] flex items-center justify-between bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      <span className="truncate select-all mr-2">
+                        curl -fsSL -o setup-contabo.sh && bash setup-contabo.sh || cat &lt;&lt; 'EOF' &gt; /opt/twins-saas/setup-all-in-one.sh
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(allInOneScriptContent, 'all_in_one')}
+                          className="px-2.5 py-1 rounded bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedKey === 'all_in_one' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedKey === 'all_in_one' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ السكربت الشامل' : 'Copy All-in-One')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadFile(allInOneScriptContent, 'setup-all-in-one.sh')}
+                          className="px-2 py-1 rounded bg-slate-800 text-slate-200 hover:bg-slate-700 flex items-center gap-1 cursor-pointer"
+                          title={isAr ? 'تحميل ملف setup-all-in-one.sh' : 'Download setup script'}
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>{isAr ? 'تحميل' : 'Download'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Method 2: SFTP / FileZilla / WinSCP */}
+                {uploadMethodTab === 'SFTP' && (
+                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-blue-500/20 space-y-2.5 text-xs text-slate-300">
+                    <p className="text-[11px] leading-relaxed text-blue-200">
+                      {isAr
+                        ? '📂 لرفع ملفات المشروع من حاسوبك إلى السيرفر باستخدام FileZilla أو WinSCP أو Cyberduck:'
+                        : '📂 To upload files from your local PC using FileZilla, WinSCP, or Cyberduck:'}
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-300">
+                      <li>{isAr ? `أنشئ المجلد أولاً: mkdir -p /opt/twins-saas` : `Create the folder first: mkdir -p /opt/twins-saas`}</li>
+                      <li>{isAr ? `افتح برنامج SFTP واتصل بالمضيف: ${contaboConfig.vpsIp} واسم المستخدم: root والمنفذ: 22` : `Connect via SFTP to Host: ${contaboConfig.vpsIp}, User: root, Port: 22`}</li>
+                      <li>{isAr ? `انتقل في السيرفر إلى المسار: /opt/twins-saas` : `Navigate on the remote server to: /opt/twins-saas`}</li>
+                      <li>{isAr ? 'قم بسحب وإفلات ملفات التكوين المولدة بالأسفل (أو ملفات المشروع) مباشرة إلى المجلد.' : 'Drag and drop the generated configuration files below directly into that directory.'}</li>
+                    </ol>
+                    <div className="font-mono text-[11px] text-emerald-400 bg-slate-950 p-2 rounded border border-slate-800 flex items-center justify-between">
+                      <span>scp -r ./* root@{contaboConfig.vpsIp}:/opt/twins-saas/</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(`scp -r ./* root@${contaboConfig.vpsIp}:/opt/twins-saas/`, 'scp_cmd')}
+                        className="text-slate-400 hover:text-white"
+                      >
+                        {copiedKey === 'scp_cmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Method 3: Git Clone */}
+                {uploadMethodTab === 'GIT' && (
+                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-purple-500/20 space-y-2 text-xs">
+                    <p className="text-purple-200 text-[11px] leading-relaxed">
+                      {isAr
+                        ? '🐙 إذا كان مشروعك على مستودع GitHub / GitLab الخاص بك، يمكنك استنساخه مباشرة إلى السيرفر:'
+                        : '🐙 If your repository is hosted on GitHub / GitLab, clone it directly into the directory:'}
+                    </p>
+                    <div className="text-purple-300 font-mono text-[11px] flex items-center justify-between bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      <span>git clone &lt;YOUR_GIT_REPO_URL&gt; /opt/twins-saas && cd /opt/twins-saas</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(`git clone <YOUR_GIT_REPO_URL> /opt/twins-saas && cd /opt/twins-saas`, 'git_cmd')}
+                        className="text-slate-400 hover:text-white"
+                      >
+                        {copiedKey === 'git_cmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                <div className="text-slate-400 text-[11px] font-sans">3. تشغيل كافة الخدمات وقواعد البيانات للشركات بأمر واحد:</div>
-                <div className="text-emerald-400 flex items-center justify-between">
-                  <span>docker compose up -d --build</span>
+              {/* Step 3: Run Containers */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                <div className="text-slate-400 text-[11px] font-sans">
+                  {isAr ? '3. تشغيل كافة الخدمات وقواعد البيانات للشركات بأمر واحد:' : '3. Start All Services & Isolated DBs with One Command:'}
+                </div>
+                <div className="text-emerald-400 flex items-center justify-between bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/60">
+                  <span className="select-all">cd /opt/twins-saas && docker compose up -d --build</span>
                   <button
                     type="button"
-                    onClick={() => handleCopy(`docker compose up -d --build`, 'step3')}
-                    className="text-slate-400 hover:text-white"
+                    onClick={() => handleCopy(`cd /opt/twins-saas && docker compose up -d --build`, 'step3')}
+                    className="text-slate-400 hover:text-white cursor-pointer px-2 py-0.5"
+                    title={isAr ? 'نسخ الأمر' : 'Copy Command'}
                   >
                     {copiedKey === 'step3' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
@@ -1311,102 +1468,163 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
             </div>
           </div>
 
-          {/* Generated File Previews with Copy Buttons */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* docker-compose.yml */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileCode className="w-4 h-4 text-blue-600" />
-                  <span className="font-bold text-xs text-slate-900 font-mono">docker-compose.yml</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(dockerComposeContent, 'compose')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedKey === 'compose' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedKey === 'compose' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ الملف' : 'Copy')}</span>
-                </button>
-              </div>
-              <textarea
-                readOnly
-                value={dockerComposeContent}
-                rows={10}
-                className="w-full font-mono text-[11px] bg-slate-900 text-emerald-400 p-3 rounded-xl resize-none"
-              />
+          {/* Generated File Previews with Copy & Download Buttons */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h4 className="font-black text-sm text-slate-900 flex items-center gap-2">
+                <FileCode className="w-4 h-4 text-blue-600" />
+                <span>{isAr ? 'ملفات التكوين والتشغيل الجاهزة للتحميل والنقل إلى /opt/twins-saas' : 'Generated Deployment Configuration Files'}</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => handleDownloadFile(allInOneScriptContent, 'setup-all-in-one.sh')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer self-start sm:self-auto"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{isAr ? 'تحميل سكربت الإعداد الشامل (setup-all-in-one.sh)' : 'Download All-In-One Script'}</span>
+              </button>
             </div>
 
-            {/* init-multiple-databases.sh */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Database className="w-4 h-4 text-emerald-600" />
-                  <span className="font-bold text-xs text-slate-900 font-mono">init-multiple-databases.sh (PostgreSQL)</span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* docker-compose.yml */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-blue-600" />
+                    <span className="font-bold text-xs text-slate-900 font-mono">docker-compose.yml</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFile(dockerComposeContent, 'docker-compose.yml')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1 cursor-pointer"
+                      title={isAr ? 'تحميل الملف' : 'Download File'}
+                    >
+                      <Download className="w-3 h-3 text-slate-600" />
+                      <span>{isAr ? 'تحميل' : 'Download'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(dockerComposeContent, 'compose')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'compose' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey === 'compose' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ' : 'Copy')}</span>
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(postgresInitContent, 'initdb')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedKey === 'initdb' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedKey === 'initdb' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ الملف' : 'Copy')}</span>
-                </button>
+                <textarea
+                  readOnly
+                  value={dockerComposeContent}
+                  rows={9}
+                  className="w-full font-mono text-[11px] bg-slate-900 text-emerald-400 p-3 rounded-xl resize-none"
+                />
               </div>
-              <textarea
-                readOnly
-                value={postgresInitContent}
-                rows={10}
-                className="w-full font-mono text-[11px] bg-slate-900 text-indigo-300 p-3 rounded-xl resize-none"
-              />
-            </div>
 
-            {/* .env.contabo */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-amber-600" />
-                  <span className="font-bold text-xs text-slate-900 font-mono">.env.contabo</span>
+              {/* init-multiple-databases.sh */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-emerald-600" />
+                    <span className="font-bold text-xs text-slate-900 font-mono">init-multiple-databases.sh (PostgreSQL)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFile(postgresInitContent, 'init-multiple-databases.sh')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1 cursor-pointer"
+                      title={isAr ? 'تحميل الملف' : 'Download File'}
+                    >
+                      <Download className="w-3 h-3 text-slate-600" />
+                      <span>{isAr ? 'تحميل' : 'Download'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(postgresInitContent, 'initdb')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'initdb' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey === 'initdb' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ' : 'Copy')}</span>
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(envContent, 'env')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedKey === 'env' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedKey === 'env' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ الملف' : 'Copy')}</span>
-                </button>
+                <textarea
+                  readOnly
+                  value={postgresInitContent}
+                  rows={9}
+                  className="w-full font-mono text-[11px] bg-slate-900 text-indigo-300 p-3 rounded-xl resize-none"
+                />
               </div>
-              <textarea
-                readOnly
-                value={envContent}
-                rows={8}
-                className="w-full font-mono text-[11px] bg-slate-900 text-amber-300 p-3 rounded-xl resize-none"
-              />
-            </div>
 
-            {/* nginx.conf */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-purple-600" />
-                  <span className="font-bold text-xs text-slate-900 font-mono">nginx.conf (SSL & Reverse Proxy)</span>
+              {/* .env.contabo */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-600" />
+                    <span className="font-bold text-xs text-slate-900 font-mono">.env.contabo</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFile(envContent, '.env')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1 cursor-pointer"
+                      title={isAr ? 'تحميل كملف .env' : 'Download as .env'}
+                    >
+                      <Download className="w-3 h-3 text-slate-600" />
+                      <span>{isAr ? 'تحميل' : 'Download'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(envContent, 'env')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'env' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey === 'env' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ' : 'Copy')}</span>
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(nginxContent, 'nginx')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedKey === 'nginx' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedKey === 'nginx' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ الملف' : 'Copy')}</span>
-                </button>
+                <textarea
+                  readOnly
+                  value={envContent}
+                  rows={8}
+                  className="w-full font-mono text-[11px] bg-slate-900 text-amber-300 p-3 rounded-xl resize-none"
+                />
               </div>
-              <textarea
-                readOnly
-                value={nginxContent}
-                rows={8}
-                className="w-full font-mono text-[11px] bg-slate-900 text-purple-300 p-3 rounded-xl resize-none"
-              />
+
+              {/* nginx.conf */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-purple-600" />
+                    <span className="font-bold text-xs text-slate-900 font-mono">nginx.conf (SSL & Reverse Proxy)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFile(nginxContent, 'nginx.conf')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1 cursor-pointer"
+                      title={isAr ? 'تحميل الملف' : 'Download File'}
+                    >
+                      <Download className="w-3 h-3 text-slate-600" />
+                      <span>{isAr ? 'تحميل' : 'Download'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(nginxContent, 'nginx')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'nginx' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey === 'nginx' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ' : 'Copy')}</span>
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  readOnly
+                  value={nginxContent}
+                  rows={8}
+                  className="w-full font-mono text-[11px] bg-slate-900 text-purple-300 p-3 rounded-xl resize-none"
+                />
+              </div>
             </div>
           </div>
         </div>
