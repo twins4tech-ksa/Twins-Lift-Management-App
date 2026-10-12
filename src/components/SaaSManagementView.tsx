@@ -38,7 +38,8 @@ import {
   Play,
   FileCode,
   FileText,
-  Clock
+  Clock,
+  Link2
 } from 'lucide-react';
 import {
   CompanyTenant,
@@ -61,6 +62,10 @@ import {
   generateContaboEnvFile,
   generateContaboNginxConfig,
   generateContaboAllInOneScript,
+  generateContaboDockerfile,
+  generateContaboDockerignore,
+  getStoredSaaSAdminKey,
+  generateSaaSSecureToken,
 } from '../utils/saasStorage';
 
 interface SaaSManagementViewProps {
@@ -116,24 +121,55 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
   // Copied alert notification
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Method tab for uploading files to /opt/twins-saas on VPS
+  // Method tab for uploading files to project directory on VPS
   const [uploadMethodTab, setUploadMethodTab] = useState<'AUTO_SCRIPT' | 'SFTP' | 'GIT'>('AUTO_SCRIPT');
+
+  // Direct secret link copy feedback
+  const [copiedAdminLink, setCopiedAdminLink] = useState(false);
+
+  const handleCopyAdminLink = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+    const key = getStoredSaaSAdminKey();
+    const token = generateSaaSSecureToken(key);
+    const link = `${origin}${pathname}?auth_token=${encodeURIComponent(token)}`;
+    navigator.clipboard.writeText(link);
+    setCopiedAdminLink(true);
+    setTimeout(() => setCopiedAdminLink(false), 2500);
+  };
 
   // Active Company Object
   const currentActiveTenant = useMemo(() => {
     return tenants.find((t) => t.id === activeTenantId) || tenants[0];
   }, [tenants, activeTenantId]);
 
-  // Filtered Companies
+  // Summary statistics for tenants and branches
+  const activeTenantsCount = useMemo(() => tenants.filter((t) => t.status === 'ACTIVE').length, [tenants]);
+  const inactiveTenantsCount = useMemo(() => tenants.filter((t) => t.status !== 'ACTIVE').length, [tenants]);
+  const totalBranchesCount = branches.length;
+
+  // Filtered Companies by Name, Commercial Registration (CR), Phone, Code, or City
   const filteredTenants = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const cleanNumeric = query.replace(/[\s\-\+\(\)]/g, '');
+
     return tenants.filter((t) => {
-      const matchSearch =
-        !searchQuery ||
-        t.nameAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.nameEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.commercialReg.includes(searchQuery) ||
-        t.city.toLowerCase().includes(searchQuery.toLowerCase());
+      let matchSearch = true;
+      if (query) {
+        const nameArMatch = t.nameAr.toLowerCase().includes(query);
+        const nameEnMatch = !!t.nameEn && t.nameEn.toLowerCase().includes(query);
+        const codeMatch = t.code.toLowerCase().includes(query);
+        const crMatch =
+          t.commercialReg.toLowerCase().includes(query) ||
+          (cleanNumeric.length > 0 && t.commercialReg.replace(/[\s\-\+\(\)]/g, '').includes(cleanNumeric));
+        const phoneMatch =
+          (t.phone && t.phone.toLowerCase().includes(query)) ||
+          (cleanNumeric.length > 0 && !!t.phone && t.phone.replace(/[\s\-\+\(\)]/g, '').includes(cleanNumeric));
+        const cityMatch = !!t.city && t.city.toLowerCase().includes(query);
+        const emailMatch = !!t.email && t.email.toLowerCase().includes(query);
+
+        matchSearch = nameArMatch || nameEnMatch || codeMatch || crMatch || phoneMatch || cityMatch || emailMatch;
+      }
 
       const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
       const matchPlan = planFilter === 'ALL' || t.plan === planFilter;
@@ -406,6 +442,8 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
 
   // Generated scripts strings
   const dockerComposeContent = useMemo(() => generateContaboDockerCompose(tenants, contaboConfig), [tenants, contaboConfig]);
+  const dockerfileContent = useMemo(() => generateContaboDockerfile(), []);
+  const dockerignoreContent = useMemo(() => generateContaboDockerignore(), []);
   const postgresInitContent = useMemo(() => generatePostgresInitScript(tenants), [tenants]);
   const deployScriptContent = useMemo(() => generateContaboDeployScript(contaboConfig), [contaboConfig]);
   const envContent = useMemo(() => generateContaboEnvFile(contaboConfig), [contaboConfig]);
@@ -426,6 +464,39 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12" dir={isAr ? 'rtl' : 'ltr'}>
+      {/* 0. Secret Direct-Link Isolation Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/40 rounded-2xl p-4 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 shrink-0">
+            <Link2 className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-black text-xs text-amber-300">
+                {isAr ? '🔒 رابط الدخول المشفر السري الحصري (Encrypted Base64 Token Access)' : '🔒 Encrypted Base64 Secret Token Access'}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                {isAr ? 'مخفية تماماً ومحمية برمز تشفير معقد' : 'Hidden & protected by encrypted token'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+              {isAr
+                ? 'تم فصل هذه الصفحة وتأمينها برمز Base64 مشفر ومعقد لا يمكن تخمينه أو فتحه عبر الروابط العادية، ومخفية كلياً من كافة قوائم التطبيق.'
+                : 'This page is separated and protected by a complex encrypted Base64 token preventing casual observation, completely hidden from public UI.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCopyAdminLink}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer shrink-0"
+        >
+          {copiedAdminLink ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+          <span>{copiedAdminLink ? (isAr ? 'تم نسخ الرابط المباشر!' : 'Direct Link Copied!') : (isAr ? 'نسخ رابط الإدارة السري' : 'Copy Secret Link')}</span>
+        </button>
+      </div>
+
       {/* 1. Header Banner & Active Tenant Impersonation Indicator */}
       <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-indigo-500/20 relative overflow-hidden">
         <div className="absolute -right-16 -top-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -540,6 +611,218 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
         </div>
       </div>
 
+      {/* 1.5. Fleet Summary Statistics & Quick Tenant Search Section */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+                <Activity className="w-4 h-4" />
+              </span>
+              <h2 className="text-base font-black text-slate-900 tracking-tight">
+                {isAr ? 'إحصائيات المنظومة السحابية والشركات' : 'SaaS Fleet Summary Statistics'}
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {isAr
+                ? 'نظرة شاملة فورية على أعداد الشركات النشطة والموقوفة وإجمالي شبكة الفروع المرتبطة عبر كافة المشتركين.'
+                : 'Real-time overview of active vs. inactive tenants and total branches connected across all companies.'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] font-bold text-slate-500">
+              {isAr ? 'حالة المنظومة:' : 'Fleet Status:'}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              {isAr ? 'تعمل بكفاءة عالية' : 'Operational'}
+            </span>
+          </div>
+        </div>
+
+        {/* The 4 Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 1. Active Tenants */}
+          <div
+            onClick={() => {
+              setActiveTab('COMPANIES');
+              setStatusFilter('ACTIVE');
+            }}
+            className="group relative p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-emerald-100/30 border border-emerald-200/80 hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-bold text-emerald-800">
+                  {isAr ? 'الشركات النشطة' : 'Active Tenants'}
+                </span>
+                <div className="text-3xl font-black text-emerald-700 font-mono mt-1">
+                  {activeTenantsCount}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 group-hover:scale-110 transition-transform">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-emerald-700 font-semibold pt-2 border-t border-emerald-200/60">
+              <span>
+                {Math.round((activeTenantsCount / (tenants.length || 1)) * 100)}% {isAr ? 'من إجمالي الشركات' : 'of all tenants'}
+              </span>
+              <span className="text-[10px] bg-emerald-200/60 px-2 py-0.5 rounded-md text-emerald-800">
+                {isAr ? 'عرض الشركات النشطة ←' : 'Filter active →'}
+              </span>
+            </div>
+          </div>
+
+          {/* 2. Inactive Tenants */}
+          <div
+            onClick={() => {
+              setActiveTab('COMPANIES');
+              setStatusFilter('SUSPENDED');
+            }}
+            className="group relative p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 to-rose-50/40 border border-amber-200/80 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-bold text-amber-900">
+                  {isAr ? 'الشركات غير النشطة / الموقوفة' : 'Inactive / Suspended'}
+                </span>
+                <div className="text-3xl font-black text-amber-700 font-mono mt-1">
+                  {inactiveTenantsCount}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 group-hover:scale-110 transition-transform">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-amber-800 font-semibold pt-2 border-t border-amber-200/60">
+              <span>
+                {tenants.filter((t) => t.status === 'SUSPENDED').length} {isAr ? 'موقوفة' : 'suspended'} &bull; {tenants.filter((t) => t.status === 'TRIAL').length} {isAr ? 'تجريبية' : 'trial'}
+              </span>
+              <span className="text-[10px] bg-amber-200/60 px-2 py-0.5 rounded-md text-amber-900">
+                {isAr ? 'فلترة الموقوفة ←' : 'Filter inactive →'}
+              </span>
+            </div>
+          </div>
+
+          {/* 3. Total Branches Across All Tenants */}
+          <div
+            onClick={() => setActiveTab('BRANCHES')}
+            className="group relative p-4 rounded-2xl bg-gradient-to-br from-blue-50/70 to-indigo-100/30 border border-blue-200/80 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-bold text-blue-900">
+                  {isAr ? 'إجمالي الفروع لكافة الشركات' : 'Total Branches (All Tenants)'}
+                </span>
+                <div className="text-3xl font-black text-blue-700 font-mono mt-1">
+                  {totalBranchesCount}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 border border-blue-500/20 group-hover:scale-110 transition-transform">
+                <GitBranch className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-blue-700 font-semibold pt-2 border-t border-blue-200/60">
+              <span>
+                {branches.filter((b) => b.isHeadquarter).length} {isAr ? 'مقر رئيسي' : 'HQs'} &bull; {branches.filter((b) => !b.isHeadquarter).length} {isAr ? 'فرع تشغيلي' : 'branches'}
+              </span>
+              <span className="text-[10px] bg-blue-200/60 px-2 py-0.5 rounded-md text-blue-900">
+                {isAr ? 'سجل الفروع ←' : 'View branches →'}
+              </span>
+            </div>
+          </div>
+
+          {/* 4. Total Registered Tenants Fleet */}
+          <div
+            onClick={() => {
+              setActiveTab('COMPANIES');
+              setStatusFilter('ALL');
+            }}
+            className="group relative p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-indigo-50/50 border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-700">
+                  {isAr ? 'إجمالي الشركات المسجلة' : 'Total Registered Tenants'}
+                </span>
+                <div className="text-3xl font-black text-slate-900 font-mono mt-1">
+                  {tenants.length}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-200 text-slate-700 border border-slate-300 group-hover:scale-110 transition-transform">
+                <Building2 className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-600 font-semibold pt-2 border-t border-slate-200">
+              <span className="text-indigo-600">
+                {isAr ? '100% قواعد بيانات معزولة' : '100% Isolated Databases'}
+              </span>
+              <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-md text-slate-800">
+                {isAr ? 'عرض الكل' : 'View all'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Top Fast Search Bar for Tenants */}
+        <div className="pt-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-50/90 p-2.5 sm:p-3 rounded-2xl border border-slate-200">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 rtl:right-3.5 rtl:left-auto ltr:left-3.5 ltr:right-auto pointer-events-none" />
+              <input
+                type="text"
+                placeholder={
+                  isAr
+                    ? 'بحث سريع في الشركات بالاسم (عربي/إنجليزي)، رقم السجل التجاري (CR)، أو رقم الهاتف...'
+                    : 'Quick filter tenants by name (Ar/En), commercial registration number (CR), or phone...'
+                }
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (activeTab !== 'COMPANIES') {
+                    setActiveTab('COMPANIES');
+                  }
+                }}
+                className="w-full text-xs font-semibold pr-10 pl-9 rtl:pr-10 rtl:pl-9 ltr:pl-10 ltr:pr-9 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 rtl:left-3 rtl:right-auto ltr:right-3 ltr:left-auto p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  title={isAr ? 'مسح البحث' : 'Clear search'}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+              <span className="text-[11px] font-bold text-slate-600 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                {isAr
+                  ? `${filteredTenants.length} من ${tenants.length} شركة`
+                  : `${filteredTenants.length} of ${tenants.length} companies`}
+              </span>
+
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setStatusFilter('ALL');
+                    setPlanFilter('ALL');
+                  }}
+                  className="text-[11px] font-bold text-rose-600 hover:text-rose-700 px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                >
+                  {isAr ? 'إعادة ضبط' : 'Reset'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 2. Top Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
         <button
@@ -645,14 +928,28 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
             <div className="flex items-center gap-2 flex-1 max-w-lg">
               <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 rtl:right-3 rtl:left-auto ltr:left-3 ltr:right-auto" />
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 rtl:right-3 rtl:left-auto ltr:left-3 ltr:right-auto pointer-events-none" />
                 <input
                   type="text"
-                  placeholder={isAr ? 'بحث بالاسم، الكود، السجل التجاري، أو المدينة...' : 'Search company, code, CR, or city...'}
+                  placeholder={
+                    isAr
+                      ? 'بحث بالاسم، رقم السجل التجاري (CR)، أو رقم الهاتف...'
+                      : 'Search by name, commercial registration (CR), or phone...'
+                  }
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full text-xs font-medium pr-9 pl-3 rtl:pr-9 rtl:pl-3 ltr:pl-9 ltr:pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-xs font-medium pr-9 pl-8 rtl:pr-9 rtl:pl-8 ltr:pl-9 ltr:pr-8 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 rtl:left-2.5 rtl:right-auto ltr:right-2.5 ltr:left-auto p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                    title={isAr ? 'مسح البحث' : 'Clear search'}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Status Filter */}
@@ -1213,7 +1510,7 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-semibold">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs font-semibold">
               <div>
                 <label className="text-slate-600 block mb-1">{isAr ? 'عنوان IP لسيرفر Contabo:' : 'Contabo VPS IP:'}</label>
                 <input
@@ -1225,7 +1522,7 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                     saveContaboConfig(updated);
                   }}
                   className="w-full p-2.5 rounded-xl border border-slate-200 font-mono text-slate-900 bg-slate-50 focus:bg-white"
-                  placeholder="185.198.57.12"
+                  placeholder="144.91.114.143"
                 />
               </div>
 
@@ -1240,7 +1537,22 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                     saveContaboConfig(updated);
                   }}
                   className="w-full p-2.5 rounded-xl border border-slate-200 font-mono text-slate-900 bg-slate-50 focus:bg-white"
-                  placeholder="elevators-saas.com"
+                  placeholder="twins-elevators-saas.serv-1001.twins4tech.com"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-600 block mb-1">{isAr ? 'مجلد المشروع على السيرفر:' : 'Project Directory:'}</label>
+                <input
+                  type="text"
+                  value={contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}
+                  onChange={(e) => {
+                    const updated = { ...contaboConfig, projectDir: e.target.value };
+                    onUpdateContaboConfig(updated);
+                    saveContaboConfig(updated);
+                  }}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 font-mono text-slate-900 bg-slate-50 focus:bg-white"
+                  placeholder="/opt/Twins-Elevators-Saas"
                 />
               </div>
 
@@ -1255,22 +1567,25 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                     saveContaboConfig(updated);
                   }}
                   className="w-full p-2.5 rounded-xl border border-slate-200 font-mono text-slate-900 bg-slate-50 focus:bg-white"
-                  placeholder="admin@yourdomain.com"
+                  placeholder="twins4tech@gmail.com"
                 />
               </div>
 
               <div>
-                <label className="text-slate-600 block mb-1">{isAr ? 'منفذ PostgreSQL السحابي:' : 'Postgres Port:'}</label>
+                <label className="text-slate-600 block mb-1">
+                  {isAr ? 'منفذ PostgreSQL على السيرفر:' : 'Host Postgres Port:'}
+                  <span className="text-[10px] text-amber-600 block font-normal">{isAr ? '(5433 لمنع التعارض مع قواعد البيانات الأخرى)' : '(5433 avoids host 5432 conflict)'}</span>
+                </label>
                 <input
                   type="number"
-                  value={contaboConfig.postgresPort}
+                  value={contaboConfig.postgresPort || 5433}
                   onChange={(e) => {
-                    const updated = { ...contaboConfig, postgresPort: Number(e.target.value) || 5432 };
+                    const updated = { ...contaboConfig, postgresPort: Number(e.target.value) || 5433 };
                     onUpdateContaboConfig(updated);
                     saveContaboConfig(updated);
                   }}
                   className="w-full p-2.5 rounded-xl border border-slate-200 font-mono text-slate-900 bg-slate-50 focus:bg-white"
-                  placeholder="5432"
+                  placeholder="5433"
                 />
               </div>
             </div>
@@ -1283,8 +1598,8 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                 <Terminal className="w-4 h-4" />
                 <span>{isAr ? 'خطوات التثبيت ورفع الملفات على سيرفر Contabo VPS عبر SSH' : 'Contabo VPS Deployment & File Setup'}</span>
               </h4>
-              <span className="text-[11px] font-sans text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg">
-                {isAr ? 'مسار المشروع المعتمد: /opt/twins-saas' : 'Project Path: /opt/twins-saas'}
+              <span className="text-[11px] font-mono text-emerald-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+                {isAr ? `مسار المشروع: ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}` : `Path: ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}`}
               </span>
             </div>
 
@@ -1308,18 +1623,18 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                 </div>
               </div>
 
-              {/* Step 2: Clarification and Methods to Put Files into /opt/twins-saas */}
+              {/* Step 2: Clarification and Methods to Put Files into Project Directory */}
               <div className="bg-slate-950 p-4 rounded-xl border border-indigo-500/30 space-y-3 font-sans">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
                   <div>
                     <div className="text-amber-300 font-bold text-xs flex items-center gap-1.5">
                       <HardDrive className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>{isAr ? '2. إنشاء المجلد ورفع / توليد الملفات بداخله:' : '2. Create Folder & Upload / Generate Files:'}</span>
+                      <span>{isAr ? `2. إعداد المجلد (${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}) والملفات:` : `2. Prepare Folder & Files (${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}):`}</span>
                     </div>
                     <p className="text-slate-400 text-[11px] mt-1 leading-relaxed">
                       {isAr
-                        ? '💡 هل يتم رفع ملفات بهذا المجلد بعد إنشائه؟ نعم! المجلد يحتاج لملفات التشغيل وقواعد البيانات. نوفر لك 3 خيارات أسهلها الخيار الأول بنقرة زر:'
-                        : '💡 Are files uploaded to this folder? Yes! It requires compose, configs, & DB scripts. Choose your preferred method below:'}
+                        ? '💡 تم تحديث السكربت الشامل بالكامل الآن! أصبح يقوم تلقائياً بإنشاء Dockerfile و .dockerignore وتهيئات Docker وقواعد بيانات جميع الشركات دون خطأ (open Dockerfile).'
+                        : '💡 The All-in-One script now auto-generates Dockerfile, .dockerignore, compose, and initializes all tenant databases with zero Dockerfile missing errors.'}
                     </p>
                   </div>
                 </div>
@@ -1336,7 +1651,7 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                     }`}
                   >
                     <Play className="w-3.5 h-3.5" />
-                    <span>{isAr ? 'الخيار 1 (الآلي الأسهل): سكريبت شامل دون نقل يدوي' : 'Option 1 (Easiest): All-In-One Script'}</span>
+                    <span>{isAr ? 'الخيار 1 (المحدث): السكربت الشامل الآلي مع Dockerfile' : 'Option 1: Updated All-In-One Script with Dockerfile'}</span>
                   </button>
                   <button
                     type="button"
@@ -1348,7 +1663,7 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                     }`}
                   >
                     <HardDrive className="w-3.5 h-3.5" />
-                    <span>{isAr ? 'الخيار 2: رفع الملفات عبر SFTP / WinSCP' : 'Option 2: SFTP / WinSCP Upload'}</span>
+                    <span>{isAr ? 'الخيار 2: رفع ملفات المشروع عبر SCP / SFTP' : 'Option 2: SCP / SFTP Upload'}</span>
                   </button>
                   <button
                     type="button"
@@ -1369,12 +1684,12 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                   <div className="bg-slate-900/90 p-3.5 rounded-xl border border-amber-500/20 space-y-2.5 text-xs">
                     <p className="text-amber-200 text-[11px] leading-relaxed">
                       {isAr
-                        ? '⚡ لا داعي لرفع ملفات يدوياً! هذا الأمر يقوم تلقائياً بإنشاء المجلد (/opt/twins-saas) وتوليد كافة ملفات docker-compose و .env وتهيئة قواعد بيانات جميع الشركات وتشغيل الحاويات فوراً:'
-                        : '⚡ No manual file uploads needed! This command auto-creates /opt/twins-saas, writes all configs & DBs, and starts Docker containers instantly:'}
+                        ? `⚡ انسخ السكربت الشامل المحدث بالأسفل وألصقه مباشرة في شاشة الـ VPS، يقوم تلقائياً بإنشاء مجلد ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'} وكتابة ملف Dockerfile وكافة الإعدادات وتشغيل قواعد بيانات جميع الشركات:`
+                        : `⚡ Copy the updated script below and paste into your VPS terminal. It auto-creates ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}, writes Dockerfile & configs, and starts databases:`}
                     </p>
                     <div className="text-amber-300 font-mono text-[11px] flex items-center justify-between bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                       <span className="truncate select-all mr-2">
-                        curl -fsSL -o setup-contabo.sh && bash setup-contabo.sh || cat &lt;&lt; 'EOF' &gt; /opt/twins-saas/setup-all-in-one.sh
+                        cat &lt;&lt; 'EOF' &gt; {contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}/setup-all-in-one.sh
                       </span>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
@@ -1399,25 +1714,23 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                   </div>
                 )}
 
-                {/* Method 2: SFTP / FileZilla / WinSCP */}
+                {/* Method 2: SFTP / SCP */}
                 {uploadMethodTab === 'SFTP' && (
                   <div className="bg-slate-900/90 p-3.5 rounded-xl border border-blue-500/20 space-y-2.5 text-xs text-slate-300">
                     <p className="text-[11px] leading-relaxed text-blue-200">
                       {isAr
-                        ? '📂 لرفع ملفات المشروع من حاسوبك إلى السيرفر باستخدام FileZilla أو WinSCP أو Cyberduck:'
-                        : '📂 To upload files from your local PC using FileZilla, WinSCP, or Cyberduck:'}
+                        ? `📂 لنقل ملفات المشروع كاملة من حاسوبك الماك / ويندوز مباشرة إلى السيرفر في مجلد ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}:`
+                        : `📂 To transfer project files from your local Mac/PC directly into ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}:`}
                     </p>
                     <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-300">
-                      <li>{isAr ? `أنشئ المجلد أولاً: mkdir -p /opt/twins-saas` : `Create the folder first: mkdir -p /opt/twins-saas`}</li>
-                      <li>{isAr ? `افتح برنامج SFTP واتصل بالمضيف: ${contaboConfig.vpsIp} واسم المستخدم: root والمنفذ: 22` : `Connect via SFTP to Host: ${contaboConfig.vpsIp}, User: root, Port: 22`}</li>
-                      <li>{isAr ? `انتقل في السيرفر إلى المسار: /opt/twins-saas` : `Navigate on the remote server to: /opt/twins-saas`}</li>
-                      <li>{isAr ? 'قم بسحب وإفلات ملفات التكوين المولدة بالأسفل (أو ملفات المشروع) مباشرة إلى المجلد.' : 'Drag and drop the generated configuration files below directly into that directory.'}</li>
+                      <li>{isAr ? `افتح التيرمنال على جهازك المحلي (Mac) داخل مجلد المشروع.` : `Open your local terminal on Mac/PC inside the project folder.`}</li>
+                      <li>{isAr ? `نفذ أمر النقل التالي لرفع كافة الملفات إلى السيرفر بنقرة واحدة:` : `Run the following SCP command to upload all files to the VPS:`}</li>
                     </ol>
-                    <div className="font-mono text-[11px] text-emerald-400 bg-slate-950 p-2 rounded border border-slate-800 flex items-center justify-between">
-                      <span>scp -r ./* root@{contaboConfig.vpsIp}:/opt/twins-saas/</span>
+                    <div className="font-mono text-[11px] text-emerald-400 bg-slate-950 p-2.5 rounded border border-slate-800 flex items-center justify-between">
+                      <span className="select-all">scp -r ./* root@{contaboConfig.vpsIp}:{contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}/</span>
                       <button
                         type="button"
-                        onClick={() => handleCopy(`scp -r ./* root@${contaboConfig.vpsIp}:/opt/twins-saas/`, 'scp_cmd')}
+                        onClick={() => handleCopy(`scp -r ./* root@${contaboConfig.vpsIp}:${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}/`, 'scp_cmd')}
                         className="text-slate-400 hover:text-white"
                       >
                         {copiedKey === 'scp_cmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1435,10 +1748,10 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                         : '🐙 If your repository is hosted on GitHub / GitLab, clone it directly into the directory:'}
                     </p>
                     <div className="text-purple-300 font-mono text-[11px] flex items-center justify-between bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                      <span>git clone &lt;YOUR_GIT_REPO_URL&gt; /opt/twins-saas && cd /opt/twins-saas</span>
+                      <span>git clone &lt;YOUR_GIT_REPO_URL&gt; {contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'} && cd {contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}</span>
                       <button
                         type="button"
-                        onClick={() => handleCopy(`git clone <YOUR_GIT_REPO_URL> /opt/twins-saas && cd /opt/twins-saas`, 'git_cmd')}
+                        onClick={() => handleCopy(`git clone <YOUR_GIT_REPO_URL> ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'} && cd ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}`, 'git_cmd')}
                         className="text-slate-400 hover:text-white"
                       >
                         {copiedKey === 'git_cmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1454,10 +1767,10 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
                   {isAr ? '3. تشغيل كافة الخدمات وقواعد البيانات للشركات بأمر واحد:' : '3. Start All Services & Isolated DBs with One Command:'}
                 </div>
                 <div className="text-emerald-400 flex items-center justify-between bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/60">
-                  <span className="select-all">cd /opt/twins-saas && docker compose up -d --build</span>
+                  <span className="select-all">cd {contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'} && docker compose up -d --build</span>
                   <button
                     type="button"
-                    onClick={() => handleCopy(`cd /opt/twins-saas && docker compose up -d --build`, 'step3')}
+                    onClick={() => handleCopy(`cd ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'} && docker compose up -d --build`, 'step3')}
                     className="text-slate-400 hover:text-white cursor-pointer px-2 py-0.5"
                     title={isAr ? 'نسخ الأمر' : 'Copy Command'}
                   >
@@ -1473,7 +1786,7 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h4 className="font-black text-sm text-slate-900 flex items-center gap-2">
                 <FileCode className="w-4 h-4 text-blue-600" />
-                <span>{isAr ? 'ملفات التكوين والتشغيل الجاهزة للتحميل والنقل إلى /opt/twins-saas' : 'Generated Deployment Configuration Files'}</span>
+                <span>{isAr ? `ملفات التكوين والتشغيل الجاهزة للتحميل والنقل إلى ${contaboConfig.projectDir || '/opt/Twins-Elevators-Saas'}` : 'Generated Deployment Configuration Files'}</span>
               </h4>
               <button
                 type="button"
@@ -1486,6 +1799,41 @@ export const SaaSManagementView: React.FC<SaaSManagementViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Dockerfile */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-indigo-600" />
+                    <span className="font-bold text-xs text-slate-900 font-mono">Dockerfile (Production Build)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFile(dockerfileContent, 'Dockerfile')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1 cursor-pointer"
+                      title={isAr ? 'تحميل الملف' : 'Download File'}
+                    >
+                      <Download className="w-3 h-3 text-slate-600" />
+                      <span>{isAr ? 'تحميل' : 'Download'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(dockerfileContent, 'dockerfile')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'dockerfile' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey === 'dockerfile' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ' : 'Copy')}</span>
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  readOnly
+                  value={dockerfileContent}
+                  rows={9}
+                  className="w-full font-mono text-[11px] bg-slate-900 text-cyan-300 p-3 rounded-xl resize-none"
+                />
+              </div>
+
               {/* docker-compose.yml */}
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between">

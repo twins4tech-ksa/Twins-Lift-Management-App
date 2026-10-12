@@ -36,8 +36,10 @@ import {
   ShieldAlert,
   Activity,
   Flame,
-  Award
+  Award,
+  Moon
 } from 'lucide-react';
+import { formatHijriDate, formatGregorianDate } from '../utils/hijriDate';
 
 interface ExecutiveDashboardViewProps {
   projects: ElevatorSpecification[];
@@ -212,21 +214,27 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
             </p>
           </div>
 
-          {/* Quick Stats Pill or Date */}
+          {/* Executive Dual Calendar: Gregorian & Hijri Date */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 text-xs flex items-center gap-3">
-              <div className="text-start">
-                <div className="text-slate-300 text-[11px] font-medium">{isAr ? 'اليوم والتاريخ:' : 'Date:'}</div>
-                <div className="font-bold text-white font-mono">
-                  {new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-US', {
-                    weekday: 'short',
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 border border-white/15 text-xs flex items-center gap-3 shadow-inner">
+              <div className="flex flex-col gap-1.5 text-start">
+                {/* Gregorian Date */}
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span className="text-[11px] text-blue-200/90 font-medium">{isAr ? 'الميلادي:' : 'Gregorian:'}</span>
+                  <span className="font-bold text-white font-mono text-[11px] sm:text-xs">
+                    {formatGregorianDate(new Date(), isAr)}
+                  </span>
+                </div>
+                {/* Hijri Date */}
+                <div className="flex items-center gap-2">
+                  <Moon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-[11px] text-amber-300 font-semibold">{isAr ? 'الهجري:' : 'Hijri:'}</span>
+                  <span className="font-black text-amber-300 font-mono text-[11px] sm:text-xs">
+                    {formatHijriDate(new Date(), isAr)}
+                  </span>
                 </div>
               </div>
-              <Calendar className="w-5 h-5 text-blue-400" />
             </div>
 
             {onNewQuotation && (

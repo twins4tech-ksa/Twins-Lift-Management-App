@@ -46,7 +46,17 @@ import {
   LayoutDashboard,
   LogOut,
   Flame,
-  Smartphone
+  Smartphone,
+  Lock,
+  KeyRound,
+  Copy,
+  Check,
+  Link2,
+  ArrowRight,
+  Server,
+  Eye,
+  EyeOff,
+  Shield
 } from 'lucide-react';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -89,7 +99,6 @@ import { ModernLoginPage } from './components/ModernLoginPage';
 import { CustomerPortalView } from './components/CustomerPortalView';
 import { TechnicianPortalView } from './components/TechnicianPortalView';
 import { DesktopSidebar } from './components/DesktopSidebar';
-import { QuickCreateMenu } from './components/QuickCreateMenu';
 import { QuickAddCustomerModal } from './components/QuickAddCustomerModal';
 import { BreakdownModal } from './components/BreakdownModal';
 import { OfflineSyncBanner } from './components/OfflineSyncBanner';
@@ -108,6 +117,10 @@ import {
   getActiveTenantId,
   setActiveTenantId,
   getStoredContaboConfig,
+  getStoredSaaSAdminKey,
+  saveSaaSAdminKey,
+  verifySaaSSecureToken,
+  generateSaaSSecureToken,
 } from './utils/saasStorage';
 
 const STORAGE_KEY_PROJECTS = 'vvt_elevator_projects_v1';
@@ -125,6 +138,39 @@ const STORAGE_KEY_AUTH_STATUS = 'vvt_elevator_auth_status_v1';
 const STORAGE_KEY_INVENTORY = 'vvt_elevator_inventory_v1';
 const STORAGE_KEY_INVENTORY_MOVEMENTS = 'vvt_elevator_inventory_movements_v1';
 const STORAGE_KEY_VENDORS = 'vvt_elevator_vendors_v1';
+
+/**
+ * Extracts and returns the complex base64-encoded encrypted token from location search or hash.
+ * Casual URL parameters (e.g. ?page=saas-admin or ?saas-admin) are strictly ignored.
+ */
+function extractSaasTokenFromLocation(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get('auth_token') || 
+                       params.get('vault') || 
+                       params.get('sec_token') || 
+                       params.get('token') || 
+                       params.get('access_token');
+    if (tokenParam && tokenParam.trim().length >= 12) return tokenParam.trim();
+
+    const hash = window.location.hash;
+    if (hash) {
+      const cleanHash = hash.replace(/^#\/?/, '').trim();
+      if (cleanHash.includes('=')) {
+        const hashParams = new URLSearchParams(cleanHash);
+        const hashToken = hashParams.get('auth_token') || 
+                          hashParams.get('vault') || 
+                          hashParams.get('sec_token') || 
+                          hashParams.get('token');
+        if (hashToken && hashToken.trim().length >= 12) return hashToken.trim();
+      } else if (cleanHash.length >= 16) {
+        return cleanHash;
+      }
+    }
+  } catch {}
+  return null;
+}
 
 export default function App() {
   // SaaS Multi-Company State
@@ -145,6 +191,43 @@ export default function App() {
   const activeTenantWarehouses = useMemo(() => {
     return saasWarehouses.filter((w) => w.companyId === currentActiveTenant?.id);
   }, [saasWarehouses, currentActiveTenant]);
+
+  const [saasAdminKey, setSaasAdminKey] = useState<string>(() => getStoredSaaSAdminKey());
+
+  // Standalone Secret Link-Only SaaS Admin Mode (Protected by complex Base64 Encrypted Token)
+  const [isSaaSAdminLinkActive, setIsSaaSAdminLinkActive] = useState<boolean>(() => {
+    try {
+      const token = extractSaasTokenFromLocation();
+      if (!token) return false;
+      const verification = verifySaaSSecureToken(token, getStoredSaaSAdminKey());
+      return verification.valid;
+    } catch {
+      return false;
+    }
+  });
+
+  const [isSaaSAdminAuthenticated, setIsSaaSAdminAuthenticated] = useState<boolean>(() => {
+    try {
+      const token = extractSaasTokenFromLocation();
+      const storedKey = getStoredSaaSAdminKey();
+      if (token) {
+        const verification = verifySaaSSecureToken(token, storedKey);
+        if (verification.valid && verification.preAuthenticated) {
+          sessionStorage.setItem('twins_saas_admin_auth', 'true');
+          return true;
+        }
+      }
+      return sessionStorage.getItem('twins_saas_admin_auth') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [adminPinInput, setAdminPinInput] = useState<string>('');
+  const [adminPinError, setAdminPinError] = useState<string | null>(null);
+  const [showAdminPin, setShowAdminPin] = useState<boolean>(false);
+  const [isChangePinModalOpen, setIsChangePinModalOpen] = useState<boolean>(false);
+  const [newPinInput, setNewPinInput] = useState<string>('');
 
   // Company and Branding Settings
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
@@ -816,6 +899,77 @@ export default function App() {
     }, 3500);
   };
 
+  // SaaS Link-Only Handlers
+  const handleUnlockSaaSAdmin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (adminPinInput.trim() === saasAdminKey) {
+      sessionStorage.setItem('twins_saas_admin_auth', 'true');
+      setIsSaaSAdminAuthenticated(true);
+      setAdminPinError(null);
+      setAdminPinInput('');
+      showToast(language === 'ar' ? 'تم فتح لوحة تحكم المنظومة السحابية بنجاح' : 'SaaS Admin Portal Unlocked');
+    } else {
+      setAdminPinError(language === 'ar' ? 'رمز الدخول غير صحيح، يرجى التأكد والمحاولة ثانية' : 'Invalid Secret Key / PIN');
+    }
+  };
+
+  const handleExitSaaSAdmin = () => {
+    setIsSaaSAdminLinkActive(false);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('auth_token');
+      url.searchParams.delete('token');
+      url.searchParams.delete('sec_token');
+      url.searchParams.delete('access_token');
+      url.searchParams.delete('vault');
+      url.searchParams.delete('page');
+      url.searchParams.delete('portal');
+      url.searchParams.delete('admin');
+      url.searchParams.delete('key');
+      url.searchParams.delete('secret');
+      url.searchParams.delete('pin');
+      url.searchParams.delete('saas-admin');
+      url.searchParams.delete('saas');
+      url.hash = '';
+      window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
+    } catch {}
+    setActiveTab('DASHBOARD');
+    showToast(language === 'ar' ? 'تمت العودة للواجهة الرئيسية' : 'Returned to Main Application');
+  };
+
+  const handleLockSaaSAdmin = () => {
+    sessionStorage.removeItem('twins_saas_admin_auth');
+    setIsSaaSAdminAuthenticated(false);
+    showToast(language === 'ar' ? 'تم قفل لوحة الإدارة' : 'SaaS Admin Locked');
+  };
+
+  const handleCopyDirectSaaSLink = () => {
+    try {
+      const origin = window.location.origin;
+      const pathname = window.location.pathname;
+      const token = generateSaaSSecureToken(saasAdminKey);
+      const directUrl = `${origin}${pathname}?auth_token=${encodeURIComponent(token)}`;
+      navigator.clipboard.writeText(directUrl);
+      showToast(language === 'ar' ? 'تم نسخ الرابط المشفر السري بنجاح!' : 'Encrypted Secret Admin Link copied to clipboard!');
+    } catch {
+      showToast(language === 'ar' ? 'تعذر النسخ تلقائياً' : 'Could not copy link');
+    }
+  };
+
+  const handleChangePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPinInput.trim().length < 4) {
+      showToast(language === 'ar' ? 'يجب أن لا يقل المفتاح السري عن 4 خانات' : 'Secret PIN must be at least 4 characters');
+      return;
+    }
+    const updated = newPinInput.trim();
+    saveSaaSAdminKey(updated);
+    setSaasAdminKey(updated);
+    setIsChangePinModalOpen(false);
+    setNewPinInput('');
+    showToast(language === 'ar' ? 'تم تحديث المفتاح السري للوحة الإدارة بنجاح' : 'Secret PIN updated successfully');
+  };
+
   // Deep-linking & QR Code digital project loader
   useEffect(() => {
     try {
@@ -823,6 +977,19 @@ export default function App() {
       const projectId = params.get('project');
       const quoteRef = params.get('ref') || params.get('quoteRef');
       const doc = params.get('doc');
+
+      // Check for Complex Base64-Encoded Encrypted Token for SaaS Admin
+      const token = extractSaasTokenFromLocation();
+      if (token) {
+        const verification = verifySaaSSecureToken(token, saasAdminKey);
+        if (verification.valid) {
+          setIsSaaSAdminLinkActive(true);
+          if (verification.preAuthenticated) {
+            sessionStorage.setItem('twins_saas_admin_auth', 'true');
+            setIsSaaSAdminAuthenticated(true);
+          }
+        }
+      }
 
       if (projectId || quoteRef) {
         const found = projects.find(p => 
@@ -884,8 +1051,30 @@ export default function App() {
     };
 
     window.addEventListener('twins:open-rescue-incident', handleRescueEvent);
+
+    const handleLocationChange = () => {
+      try {
+        const token = extractSaasTokenFromLocation();
+        if (token) {
+          const verification = verifySaaSSecureToken(token, saasAdminKey);
+          if (verification.valid) {
+            setIsSaaSAdminLinkActive(true);
+            if (verification.preAuthenticated) {
+              sessionStorage.setItem('twins_saas_admin_auth', 'true');
+              setIsSaaSAdminAuthenticated(true);
+            }
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+
     return () => {
       window.removeEventListener('twins:open-rescue-incident', handleRescueEvent);
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
     };
   }, [breakdowns]);
 
@@ -1605,6 +1794,334 @@ export default function App() {
     }
   };
 
+  // =================================================================
+  // STANDALONE SEPARATE SAAS MASTER ADMIN (Link-Only Private Access)
+  // Completely separate from regular company portal, accessible only via link
+  // =================================================================
+  if (isSaaSAdminLinkActive) {
+    if (!isSaaSAdminAuthenticated) {
+      // 1. Secret SaaS Admin PIN / Security Gate
+      return (
+        <div dir={language === 'ar' ? 'rtl' : 'ltr'} className="min-h-screen bg-gradient-to-br from-slate-950 via-[#0B1E3B] to-slate-900 text-white flex flex-col justify-between font-sans selection:bg-blue-500 selection:text-white">
+          {/* Top subtle bar */}
+          <header className="p-4 sm:p-6 flex items-center justify-between border-b border-indigo-900/30">
+            <div className="flex items-center gap-3">
+              <TwinsLogo className="h-9 w-auto" />
+              <div className="hidden sm:block">
+                <span className="text-xs font-black tracking-wider text-indigo-300 uppercase block">Twins Elevators Cloud</span>
+                <span className="text-[11px] text-slate-400 font-medium">Infrastructure & Multi-Tenancy</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const nextLang = language === 'ar' ? 'en' : 'ar';
+                  setLanguage(nextLang);
+                  showToast(nextLang === 'ar' ? 'تم تحويل لغة التطبيق إلى العربية' : 'Switched interface to English');
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-300 border border-white/10 transition-colors cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                <span>{language === 'ar' ? 'English' : 'عربي'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExitSaaSAdmin}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-xs font-bold text-slate-300 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 transition-colors cursor-pointer"
+                title={language === 'ar' ? 'الرجوع للنظام العام' : 'Exit to Main System'}
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'العودة للبوابة الرئيسية' : 'Return to App'}</span>
+              </button>
+            </div>
+          </header>
+
+          {/* Center Card */}
+          <main className="flex-1 flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-2xl border border-indigo-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+              <div className="absolute -right-20 -top-20 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -left-20 -bottom-20 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 text-center space-y-4">
+                <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/30">
+                  <KeyRound className="w-8 h-8" />
+                </div>
+
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mb-2">
+                    <Shield className="w-3 h-3 text-indigo-400" />
+                    <span>{language === 'ar' ? 'بوابة سرية خاصة بالمالك' : 'Restricted Master Admin'}</span>
+                  </div>
+                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    {language === 'ar' ? 'لوحة تحكم المنظومة السحابية' : 'SaaS Master Admin Console'}
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                    {language === 'ar'
+                      ? 'هذه الصفحة منفصلة تماماً وخاصة بمالك النظام لإدارة الشركات وقواعد البيانات المنفصلة وسيرفر Contabo VPS. أدخل الرمز السري للدخول.'
+                      : 'This page is separate and dedicated to the SaaS owner for managing companies, isolated databases, and Contabo VPS. Enter secret PIN to unlock.'}
+                  </p>
+                </div>
+
+                {adminPinError && (
+                  <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-2 text-start animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>{adminPinError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleUnlockSaaSAdmin} className="space-y-4 pt-2 text-start">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                      {language === 'ar' ? 'المفتاح السري لمدير النظام (Admin Secret PIN):' : 'Admin Secret PIN:'}
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 start-0 ps-3.5 flex items-center pointer-events-none text-slate-400">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <input
+                        type={showAdminPin ? 'text' : 'password'}
+                        value={adminPinInput}
+                        onChange={(e) => {
+                          setAdminPinInput(e.target.value);
+                          setAdminPinError(null);
+                        }}
+                        autoFocus
+                        placeholder={language === 'ar' ? 'أدخل المفتاح السري...' : 'Enter Secret PIN...'}
+                        className="w-full ps-10 pe-10 py-3 rounded-xl bg-slate-950/80 border border-indigo-500/30 text-white placeholder-slate-500 text-sm font-mono focus:outline-hidden focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminPin(!showAdminPin)}
+                        className="absolute inset-y-0 end-0 pe-3 flex items-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      >
+                        {showAdminPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                  >
+                    <span>{language === 'ar' ? 'فتح لوحة الإدارة السحابية' : 'Unlock SaaS Console'}</span>
+                    <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                  </button>
+                </form>
+              </div>
+            </div>
+          </main>
+
+          {/* Bottom Footer */}
+          <footer className="p-4 text-center text-xs text-slate-500 border-t border-indigo-900/20">
+            <span>Twins Elevators SaaS Infrastructure &copy; {new Date().getFullYear()} • Multi-Tenant Isolated PostgreSQL Architecture</span>
+          </footer>
+
+          {/* Toast Notification */}
+          {toastMessage && (
+            <div className="fixed bottom-5 end-5 z-50 animate-in fade-in duration-200">
+              <div className="bg-slate-900 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>{toastMessage}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 2. Authenticated Standalone SaaS Super Admin Console
+    return (
+      <div dir={language === 'ar' ? 'rtl' : 'ltr'} className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
+        {/* Top Master Admin Header */}
+        <header className="bg-[#0B1E3B]/95 backdrop-blur-md border-b border-indigo-900/60 sticky top-0 z-50 shadow-xl">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+            {/* Left: Branding & Statistics */}
+            <div className="flex items-center gap-3 min-w-0">
+              <TwinsLogo className="h-9 w-auto shrink-0" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-sm text-white tracking-wide truncate">
+                    {language === 'ar' ? 'منظومة توينز السحابية | لوحة القيادة المركزية' : 'Twins SaaS Master Console'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    SUPER ADMIN
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-slate-400 hidden sm:flex">
+                  <span className="text-emerald-400 font-bold">{saasTenants.length} {language === 'ar' ? 'شركات' : 'companies'}</span>
+                  <span>•</span>
+                  <span>{saasBranches.length} {language === 'ar' ? 'فروع' : 'branches'}</span>
+                  <span>•</span>
+                  <span>{saasWarehouses.length} {language === 'ar' ? 'مستودعات' : 'warehouses'}</span>
+                  <span>•</span>
+                  <span className="font-mono text-indigo-300">VPS: {contaboConfig.vpsIp}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Master Control Actions */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Copy Direct Secret Link */}
+              <button
+                type="button"
+                onClick={handleCopyDirectSaaSLink}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                title={language === 'ar' ? 'نسخ الرابط السري المباشر مع المفتاح' : 'Copy Secret Link with Key'}
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">{language === 'ar' ? 'نسخ الرابط السري' : 'Copy Secret Link'}</span>
+              </button>
+
+              {/* Change PIN Modal Button */}
+              <button
+                type="button"
+                onClick={() => setIsChangePinModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+                title={language === 'ar' ? 'تغيير المفتاح السري' : 'Change Secret PIN'}
+              >
+                <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden md:inline">{language === 'ar' ? 'تغيير الرمز' : 'Change PIN'}</span>
+              </button>
+
+              {/* Language Switcher */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextLang = language === 'ar' ? 'en' : 'ar';
+                  setLanguage(nextLang);
+                  showToast(nextLang === 'ar' ? 'تم تحويل لغة التطبيق إلى العربية' : 'Switched interface to English');
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5 text-blue-400" />
+                <span>{language === 'ar' ? 'EN' : 'عربي'}</span>
+              </button>
+
+              {/* Lock Console */}
+              <button
+                type="button"
+                onClick={handleLockSaaSAdmin}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30 transition-colors cursor-pointer"
+                title={language === 'ar' ? 'قفل لوحة الإدارة' : 'Lock Console'}
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden lg:inline">{language === 'ar' ? 'قفل اللوحة' : 'Lock'}</span>
+              </button>
+
+              {/* Exit to Main App */}
+              <button
+                type="button"
+                onClick={handleExitSaaSAdmin}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold border border-rose-500/30 transition-colors cursor-pointer"
+                title={language === 'ar' ? 'الرجوع لنظام الشركة العام' : 'Exit to Company Portal'}
+              >
+                <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">{language === 'ar' ? 'الرجوع للنظام العام' : 'Exit to App'}</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Master Admin Body */}
+        <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6">
+          <SaaSManagementView
+            tenants={saasTenants}
+            branches={saasBranches}
+            warehouses={saasWarehouses}
+            activeTenantId={activeTenantId}
+            contaboConfig={contaboConfig}
+            onUpdateTenants={(updated) => setSaasTenants(updated)}
+            onUpdateBranches={(updated) => setSaasBranches(updated)}
+            onUpdateWarehouses={(updated) => setSaasWarehouses(updated)}
+            onSelectActiveTenant={handleSelectActiveTenant}
+            onUpdateContaboConfig={(updated) => setContaboConfig(updated)}
+            isAr={language === 'ar'}
+          />
+        </main>
+
+        {/* Change Secret PIN Modal */}
+        {isChangePinModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-slate-900 border border-indigo-500/30 rounded-3xl p-6 text-white shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black">{language === 'ar' ? 'تغيير المفتاح السري' : 'Change Secret PIN'}</h3>
+                    <p className="text-[11px] text-slate-400">{language === 'ar' ? 'المفتاح المستخدم لحماية لوحة الإدارة السحابية' : 'PIN used to protect SaaS Master Console'}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsChangePinModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleChangePin} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {language === 'ar' ? 'المفتاح السري الحالي:' : 'Current PIN:'}
+                  </label>
+                  <div className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 font-mono text-sm text-slate-400">
+                    {saasAdminKey}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {language === 'ar' ? 'المفتاح السري الجديد (4 خانات على الأقل):' : 'New Secret PIN (min 4 chars):'}
+                  </label>
+                  <input
+                    type="text"
+                    value={newPinInput}
+                    onChange={(e) => setNewPinInput(e.target.value)}
+                    placeholder={language === 'ar' ? 'أدخل المفتاح الجديد...' : 'Enter new PIN...'}
+                    autoFocus
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-indigo-500/40 text-white placeholder-slate-500 font-mono text-sm focus:outline-hidden focus:border-indigo-400"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsChangePinModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors shadow-md cursor-pointer"
+                  >
+                    {language === 'ar' ? 'حفظ المفتاح الجديد' : 'Save New PIN'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Global Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-5 end-5 z-50 animate-in fade-in duration-200">
+            <div className="bg-slate-900 text-white text-xs sm:text-sm font-bold px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>{toastMessage}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // If not authenticated: The Home Page IS the Beautiful White Login & Access Portal!
   if (!isAuthenticated || !currentUserProfile) {
     return (
@@ -1679,23 +2196,7 @@ export default function App() {
                 onOpenRenewalEmail={(contract) => setRenewalQuotationContract(contract)}
               />
 
-              {/* 4. Quick Add Button: "جديد" (New button) */}
-              <QuickCreateMenu
-                language={language}
-                currentRole={currentRole}
-                onNewQuotation={handleNewQuotation}
-                onNewProject={handleQuickAddProject}
-                onNewCustomer={() => setIsQuickCustomerModalOpen(true)}
-                onNewBreakdown={() => setIsQuickBreakdownModalOpen(true)}
-                onNewContract={() => setActiveTab('MAINTENANCE_CONTRACTS')}
-                onNewSalesContract={() => setActiveTab('SALES_CONTRACTS')}
-                onNewEmployee={() => setActiveTab('EMPLOYEES')}
-                onNewAttendance={() => handleOpenAttendanceModal()}
-                onNewInventoryItem={() => setActiveTab('INVENTORY')}
-                variant="navbar"
-              />
-
-              {/* 5. PWA Install Button */}
+              {/* 4. PWA Install Button */}
               <PWAInstallButton isAr={language === 'ar'} variant="header" />
 
               {/* 6. PostgreSQL Database Status Check */}
@@ -1720,29 +2221,6 @@ export default function App() {
                     dbStatus.connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
                   }`}
                 />
-              </button>
-
-              {/* 7. SaaS Multi-Company Tenant Hub Button */}
-              <button
-                type="button"
-                onClick={() => setActiveTab('SAAS_PORTAL')}
-                className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer border shadow-xs text-xs font-bold ${
-                  activeTab === 'SAAS_PORTAL'
-                    ? 'bg-indigo-600 text-white border-indigo-400'
-                    : 'bg-indigo-950/60 text-indigo-200 border-indigo-500/40 hover:bg-indigo-900/60 hover:text-white'
-                }`}
-                title={language === 'ar' ? `لوحة تحكم الشركات السحابية (الشركة النشطة: ${currentActiveTenant?.nameAr})` : `SaaS Companies Hub (Active: ${currentActiveTenant?.nameAr})`}
-              >
-                <Globe className="w-4 h-4 text-indigo-400 shrink-0" />
-                <span className="hidden md:inline font-mono text-[11px] font-black text-amber-300">
-                  {currentActiveTenant?.code}
-                </span>
-                <span className="hidden xl:inline max-w-[120px] truncate text-[11px]">
-                  {currentActiveTenant?.nameAr}
-                </span>
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-500/30 text-indigo-200">
-                  SaaS
-                </span>
               </button>
             </div>
 
@@ -2244,21 +2722,6 @@ export default function App() {
                         >
                           <SettingsIcon className="w-5 h-5 text-amber-600" />
                           {language === 'ar' ? 'إعدادات الشركة' : 'Settings & Branding'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setActiveTab('SAAS_PORTAL'); setIsMobileMenuOpen(false); }}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                            activeTab === 'SAAS_PORTAL'
-                              ? 'bg-indigo-600 text-white shadow-xs font-semibold'
-                              : 'text-slate-700 hover:text-indigo-700 hover:bg-slate-100 font-medium'
-                          }`}
-                        >
-                          <Globe className="w-5 h-5 text-indigo-600" />
-                          <div className="flex items-center justify-between flex-1">
-                            <span>{language === 'ar' ? 'لوحة تحكم الشركات (SaaS)' : 'SaaS Companies Hub'}</span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800">SaaS</span>
-                          </div>
                         </button>
                       </>
                     )}
@@ -2857,22 +3320,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 10: SaaS Multi-Tenant Management Portal */}
-        {activeTab === 'SAAS_PORTAL' && (
-          <SaaSManagementView
-            tenants={saasTenants}
-            branches={saasBranches}
-            warehouses={saasWarehouses}
-            activeTenantId={activeTenantId}
-            contaboConfig={contaboConfig}
-            onUpdateTenants={(updated) => setSaasTenants(updated)}
-            onUpdateBranches={(updated) => setSaasBranches(updated)}
-            onUpdateWarehouses={(updated) => setSaasWarehouses(updated)}
-            onSelectActiveTenant={handleSelectActiveTenant}
-            onUpdateContaboConfig={(updated) => setContaboConfig(updated)}
-            isAr={language === 'ar'}
-          />
-        )}
+
       </main>
       </div>
       </div>

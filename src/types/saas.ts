@@ -119,18 +119,22 @@ export interface ContaboVpsConfig {
   appPort: number;
   sslEmail: string;
   dockerNetwork: string;
+  projectDir: string;
+  gitRepoUrl?: string;
 }
 
 export const DEFAULT_CONTABO_CONFIG: ContaboVpsConfig = {
-  vpsIp: '185.198.57.12',
-  domain: 'elevators-saas.com',
+  vpsIp: '144.91.114.143',
+  domain: 'twins-elevators-saas.serv-1001.twins4tech.com',
   sshPort: 22,
-  postgresPort: 5432,
+  postgresPort: 5433,
   postgresSuperUser: 'postgres',
   redisPort: 6379,
   appPort: 3000,
-  sslEmail: 'admin@twins-elevators.com',
+  sslEmail: 'twins4tech@gmail.com',
   dockerNetwork: 'twins_saas_network',
+  projectDir: '/opt/Twins-Elevators-Saas',
+  gitRepoUrl: '',
 };
 
 // ==========================================

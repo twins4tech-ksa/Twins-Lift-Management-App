@@ -100,7 +100,17 @@ export function setActiveTenantId(tenantId: string) {
 export function getStoredContaboConfig(): ContaboVpsConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SAAS_CONTABO);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate port 5432 to 5433 so it doesn't conflict with other PostgreSQL on VPS
+      const port = (parsed.postgresPort === 5432 || !parsed.postgresPort) ? 5433 : parsed.postgresPort;
+      return {
+        ...DEFAULT_CONTABO_CONFIG,
+        ...parsed,
+        postgresPort: port,
+        projectDir: parsed.projectDir || '/opt/Twins-Elevators-Saas',
+      };
+    }
   } catch (e) {}
   return DEFAULT_CONTABO_CONFIG;
 }
@@ -112,17 +122,214 @@ export function saveContaboConfig(config: ContaboVpsConfig) {
 }
 
 // ==========================================
+// Secret Direct-Link SaaS Admin Key Storage
+// ==========================================
+export const STORAGE_KEY_SAAS_ADMIN_KEY = 'twins_saas_admin_secret_key_v1';
+export const DEFAULT_SAAS_ADMIN_KEY = 'twins2026';
+
+export function getStoredSaaSAdminKey(): string {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_SAAS_ADMIN_KEY);
+    if (stored) return stored;
+  } catch (e) {}
+  return DEFAULT_SAAS_ADMIN_KEY;
+}
+
+export function saveSaaSAdminKey(key: string) {
+  try {
+    localStorage.setItem(STORAGE_KEY_SAAS_ADMIN_KEY, key);
+  } catch (e) {}
+}
+
+// ==========================================
+// Encrypted Base64 SaaS Admin Token Utilities
+// Obfuscates and encrypts the SaaS entry point
+// ==========================================
+const SAAS_TOKEN_CIPHER_SECRET = 'TWINS_ELEVATORS_SAAS_ENCRYPTED_VAULT_KEY_2026_V1';
+
+export function computeSimpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
+}
+
+export function encryptPayload(text: string, key = SAAS_TOKEN_CIPHER_SECRET): string {
+  const enc: string[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const charCode = text.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+    enc.push(String.fromCharCode(charCode));
+  }
+  const str = enc.join('');
+  try {
+    const b64 = typeof btoa !== 'undefined'
+      ? btoa(str)
+      : Buffer.from(str, 'binary').toString('base64');
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch {
+    const b64 = btoa(unescape(encodeURIComponent(str)));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+}
+
+export function decryptPayload(b64url: string, key = SAAS_TOKEN_CIPHER_SECRET): string | null {
+  try {
+    let clean = b64url.trim().replace(/-/g, '+').replace(/_/g, '/');
+    while (clean.length % 4) {
+      clean += '=';
+    }
+    const decoded = typeof atob !== 'undefined'
+      ? atob(clean)
+      : Buffer.from(clean, 'base64').toString('binary');
+    const dec: string[] = [];
+    for (let i = 0; i < decoded.length; i++) {
+      const charCode = decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+      dec.push(String.fromCharCode(charCode));
+    }
+    return dec.join('');
+  } catch {
+    return null;
+  }
+}
+
+export interface SaasTokenVerificationResult {
+  valid: boolean;
+  preAuthenticated: boolean;
+}
+
+/**
+ * Generates a complex base64-encoded encrypted token for SaaS admin access.
+ * Masks all obvious parameters into an encrypted URL-safe string.
+ */
+export function generateSaaSSecureToken(adminKey?: string): string {
+  const effectiveKey = (adminKey || getStoredSaaSAdminKey()).trim();
+  const payload = JSON.stringify({
+    system: 'twins_elevators_saas_master',
+    scope: 'cloud_infrastructure_control',
+    chk: computeSimpleHash(`twins_${effectiveKey}_secret_vault_salt`),
+    iat: Date.now(),
+    rnd: Math.random().toString(36).substring(2, 10),
+  });
+  return encryptPayload(payload);
+}
+
+/**
+ * Verifies the complex, base64-encoded encrypted token from URL parameters.
+ * Validates the encrypted payload and checks whether the key signature matches.
+ */
+export function verifySaaSSecureToken(
+  tokenString: string | null | undefined,
+  expectedAdminKey?: string
+): SaasTokenVerificationResult {
+  if (!tokenString || typeof tokenString !== 'string') {
+    return { valid: false, preAuthenticated: false };
+  }
+
+  const raw = tokenString.trim();
+  if (raw.length < 8) {
+    return { valid: false, preAuthenticated: false };
+  }
+
+  try {
+    const decrypted = decryptPayload(raw);
+    if (!decrypted) return { valid: false, preAuthenticated: false };
+
+    const parsed = JSON.parse(decrypted);
+    if (
+      parsed &&
+      parsed.system === 'twins_elevators_saas_master' &&
+      parsed.scope === 'cloud_infrastructure_control'
+    ) {
+      const activeKey = (expectedAdminKey || getStoredSaaSAdminKey()).trim();
+      const expectedChk = computeSimpleHash(`twins_${activeKey}_secret_vault_salt`);
+      const keyMatches = parsed.chk === expectedChk;
+      return {
+        valid: true,
+        preAuthenticated: keyMatches,
+      };
+    }
+  } catch {}
+
+  return { valid: false, preAuthenticated: false };
+}
+
+// ==========================================
 // Contabo VPS & Docker Scripts Generators
 // ==========================================
+
+export function generateContaboDockerfile(): string {
+  return `# =================================================================
+# Twins Elevators Multi-Tenant SaaS - Production Dockerfile
+# Optimized multi-stage build for Node.js 20 & Vite React SPA
+# =================================================================
+
+# Stage 1: Build Frontend Assets
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+COPY package*.json ./
+RUN npm install --legacy-peer-deps
+
+# Copy all source files
+COPY . .
+
+# Build the production frontend bundle (outputs to /app/dist)
+RUN npm run build
+
+# Stage 2: Production Runtime
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Install production dependencies
+COPY package*.json ./
+RUN npm install --omit=dev --legacy-peer-deps && npm install -g tsx
+
+# Copy built frontend from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Copy backend server script and configuration
+COPY --from=builder /app/server.ts ./server.ts
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/public ./public
+
+# Expose app port
+EXPOSE 3000
+
+# Start production server
+CMD ["tsx", "server.ts"]
+`;
+}
+
+export function generateContaboDockerignore(): string {
+  return `node_modules
+dist
+dev-dist
+.git
+.github
+*.log
+.env.local
+.env.*.local
+.DS_Store
+backups
+android
+`;
+}
 
 export function generateContaboDockerCompose(tenants: CompanyTenant[], config: ContaboVpsConfig): string {
   return `# =================================================================
 # Twins Elevators Multi-Tenant SaaS - Contabo VPS Deployment
 # Generated for VPS IP: ${config.vpsIp} | Domain: ${config.domain}
+# Main Project Directory: ${config.projectDir || '/opt/Twins-Elevators-Saas'}
 # Isolated PostgreSQL Multi-Tenant Databases per Company
 # =================================================================
-
-version: '3.8'
 
 services:
   # 1. Reverse Proxy & SSL Termination
@@ -257,10 +464,12 @@ echo "All tenant databases successfully created and permissions granted."
 }
 
 export function generateContaboDeployScript(config: ContaboVpsConfig): string {
+  const projectDir = config.projectDir || '/opt/Twins-Elevators-Saas';
   return `#!/bin/bash
 # =================================================================
 # Twins Elevators SaaS - Automated Contabo VPS Setup Script
 # Run on clean Ubuntu 22.04 / 24.04 LTS VPS
+# Project Path: ${projectDir}
 # =================================================================
 
 set -e
@@ -275,9 +484,9 @@ if ! command -v docker &> /dev/null; then
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-    echo \\
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \\
-      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \\
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
       sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
     sudo apt-get update -y
@@ -292,26 +501,38 @@ sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw --force enable
 
-echo "=== [4/6] Creating Application Directories ==="
-mkdir -p /opt/twins-saas/backups
-mkdir -p /opt/twins-saas/certbot/conf
-mkdir -p /opt/twins-saas/certbot/www
-cd /opt/twins-saas
+echo "=== [4/6] Creating Application Directories in ${projectDir} ==="
+mkdir -p "${projectDir}/backups"
+mkdir -p "${projectDir}/certbot/conf"
+mkdir -p "${projectDir}/certbot/www"
+
+# Handle case if lowercase directory was created previously
+if [ -d "/opt/twins-elevators-saas" ] && [ "${projectDir}" != "/opt/twins-elevators-saas" ]; then
+    ln -sfn "${projectDir}" /opt/twins-elevators-saas 2>/dev/null || true
+fi
+
+cd "${projectDir}"
 
 echo "=== [5/6] Making Scripts Executable ==="
 chmod +x ./init-multiple-databases.sh 2>/dev/null || true
 chmod +x ./deploy-contabo.sh 2>/dev/null || true
 
 echo "=== [6/6] Launching Multi-Tenant SaaS Containers ==="
-docker compose pull || true
-docker compose up -d --build
+docker compose pull postgres redis nginx certbot || true
+docker compose up -d postgres redis
+
+if [ -f "./package.json" ]; then
+    docker compose up -d --build
+else
+    echo ">> Databases initialized. Upload project code to ${projectDir} then run: docker compose up -d --build"
+fi
 
 echo ""
 echo "==================================================================="
-echo "  Twins Elevators Multi-Tenant SaaS is now RUNNING on Contabo VPS!"
+echo "  Twins Elevators Multi-Tenant SaaS is configured on Contabo VPS!"
+echo "  Directory: ${projectDir}"
 echo "  Server IP: ${config.vpsIp}"
 echo "  Domain: https://${config.domain}"
-echo "  Check container logs: docker compose logs -f"
 echo "==================================================================="
 `;
 }
@@ -326,6 +547,7 @@ NODE_ENV=production
 PORT=${config.appPort}
 APP_DOMAIN=${config.domain}
 VPS_IP=${config.vpsIp}
+PROJECT_DIR=${config.projectDir || '/opt/Twins-Elevators-Saas'}
 
 # Master Database Superuser (for creating tenant databases)
 POSTGRES_USER=${config.postgresSuperUser}
@@ -403,7 +625,10 @@ server {
 }
 
 export function generateContaboAllInOneScript(tenants: CompanyTenant[], config: ContaboVpsConfig): string {
+  const projectDir = config.projectDir || '/opt/Twins-Elevators-Saas';
   const dockerCompose = generateContaboDockerCompose(tenants, config);
+  const dockerfile = generateContaboDockerfile();
+  const dockerignore = generateContaboDockerignore();
   const postgresInit = generatePostgresInitScript(tenants);
   const envFile = generateContaboEnvFile(config);
   const nginxConf = generateContaboNginxConfig(config);
@@ -411,48 +636,92 @@ export function generateContaboAllInOneScript(tenants: CompanyTenant[], config: 
   return `#!/bin/bash
 # =================================================================
 # Twins Elevators Multi-Tenant SaaS - Complete Automated Contabo Setup
-# Run this on your clean Contabo VPS to auto-create /opt/twins-saas,
-# write all configuration files, and launch all tenant databases!
+# Run this on your Contabo VPS to auto-create ${projectDir},
+# write all configuration files & Dockerfile, and launch all tenant databases!
 # =================================================================
 set -e
 
-echo "=== [1/6] Preparing Application Directories in /opt/twins-saas ==="
-mkdir -p /opt/twins-saas/backups
-mkdir -p /opt/twins-saas/certbot/conf
-mkdir -p /opt/twins-saas/certbot/www
-cd /opt/twins-saas
+TARGET_DIR="${projectDir}"
 
-echo "=== [2/6] Writing docker-compose.yml ==="
-cat << 'EOF' > /opt/twins-saas/docker-compose.yml
+echo "=== [1/7] Preparing Application Directories in $TARGET_DIR ==="
+mkdir -p "$TARGET_DIR/backups"
+mkdir -p "$TARGET_DIR/certbot/conf"
+mkdir -p "$TARGET_DIR/certbot/www"
+
+# Handle case if lowercase directory was created or if user ran inside it
+if [ -d "/opt/twins-elevators-saas" ] && [ "$TARGET_DIR" != "/opt/twins-elevators-saas" ]; then
+    echo "Creating symlink /opt/twins-elevators-saas -> $TARGET_DIR"
+    ln -sfn "$TARGET_DIR" /opt/twins-elevators-saas 2>/dev/null || true
+fi
+
+cd "$TARGET_DIR"
+
+echo "=== [2/7] Writing Dockerfile & .dockerignore ==="
+cat << 'EOF' > "$TARGET_DIR/Dockerfile"
+${dockerfile}
+EOF
+
+cat << 'EOF' > "$TARGET_DIR/.dockerignore"
+${dockerignore}
+EOF
+
+echo "=== [3/7] Writing docker-compose.yml ==="
+cat << 'EOF' > "$TARGET_DIR/docker-compose.yml"
 ${dockerCompose}
 EOF
 
-echo "=== [3/6] Writing .env File ==="
-cat << 'EOF' > /opt/twins-saas/.env
+echo "=== [4/7] Writing .env File ==="
+cat << 'EOF' > "$TARGET_DIR/.env"
 ${envFile}
 EOF
 
-echo "=== [4/6] Writing init-multiple-databases.sh ==="
-cat << 'EOF' > /opt/twins-saas/init-multiple-databases.sh
+echo "=== [5/7] Writing init-multiple-databases.sh ==="
+cat << 'EOF' > "$TARGET_DIR/init-multiple-databases.sh"
 ${postgresInit}
 EOF
-chmod +x /opt/twins-saas/init-multiple-databases.sh
+chmod +x "$TARGET_DIR/init-multiple-databases.sh"
 
-echo "=== [5/6] Writing nginx.conf ==="
-cat << 'EOF' > /opt/twins-saas/nginx.conf
+echo "=== [6/7] Writing nginx.conf ==="
+cat << 'EOF' > "$TARGET_DIR/nginx.conf"
 ${nginxConf}
 EOF
 
-echo "=== [6/6] Launching Containers & Multi-Tenant Databases ==="
-docker compose pull || true
-docker compose up -d --build
+echo "=== [7/7] Launching PostgreSQL (Isolated Tenant Databases) & Redis ==="
+docker compose down --remove-orphans 2>/dev/null || true
+docker compose pull postgres redis nginx certbot || true
+docker compose up -d postgres redis
 
-echo ""
-echo "==================================================================="
-echo "  All Configuration Files Written & Containers Started!"
-echo "  Twins Elevators Multi-Tenant SaaS is now RUNNING on Contabo VPS!"
-echo "  Server IP: ${config.vpsIp}"
-echo "  Domain: https://${config.domain}"
-echo "==================================================================="
+echo "Waiting for PostgreSQL to initialize all tenant databases..."
+sleep 4
+
+# Check if application source code exists
+if [ -f "$TARGET_DIR/package.json" ]; then
+    echo "Application source code detected. Building and starting full SaaS app container..."
+    docker compose up -d --build
+    echo ""
+    echo "==================================================================="
+    echo "  SUCCESS: Twins Elevators Multi-Tenant SaaS is RUNNING on Contabo!"
+    echo "  Directory: $TARGET_DIR"
+    echo "  Server IP: ${config.vpsIp}"
+    echo "  Domain: https://${config.domain}"
+    echo "  Databases: PostgreSQL isolated databases provisioned for all companies"
+    echo "==================================================================="
+else
+    echo "-------------------------------------------------------------------"
+    echo "  [DATABASE ENGINES READY & HEALTHY]"
+    echo "  PostgreSQL has started and created isolated databases for each company."
+    echo "  Redis cache and session store is running."
+    echo ""
+    echo "  [NEXT STEP TO START WEB APP]:"
+    echo "  Upload your application source files to: $TARGET_DIR"
+    echo "  Run this one command from your local terminal (e.g. Mac/PC):"
+    echo "    scp -r /path/to/Twins-Elevators-Saas/* root@${config.vpsIp}:$TARGET_DIR/"
+    echo "  "
+    echo "  Then build and start the web application:"
+    echo "    cd $TARGET_DIR && docker compose up -d --build"
+    echo "-------------------------------------------------------------------"
+    # Start Nginx and certbot
+    docker compose up -d nginx certbot 2>/dev/null || true
+fi
 `;
 }

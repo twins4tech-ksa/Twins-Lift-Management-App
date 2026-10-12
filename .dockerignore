@@ -1,0 +1,11 @@
+node_modules
+dist
+dev-dist
+.git
+.github
+*.log
+.env.local
+.env.*.local
+.DS_Store
+backups
+android
