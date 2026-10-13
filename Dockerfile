@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Install build dependencies
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps && npm install react-is --legacy-peer-deps
 
 # Copy all source files
 COPY . .
@@ -28,7 +28,7 @@ ENV PORT=3000
 
 # Install production dependencies
 COPY package*.json ./
-RUN npm install --omit=dev --legacy-peer-deps && npm install -g tsx
+RUN npm install --omit=dev --legacy-peer-deps && npm install react-is --legacy-peer-deps && npm install -g tsx
 
 # Copy built frontend from builder stage
 COPY --from=builder /app/dist ./dist

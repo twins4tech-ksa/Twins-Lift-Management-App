@@ -1,0 +1,108 @@
+# =================================================================
+# Twins Elevators Multi-Tenant SaaS - Contabo VPS Docker Compose
+# Architecture:
+#   1. Nginx Reverse Proxy (Port 80/443, SSL Termination, Caching)
+#   2. Full-Stack Node.js/Vite App (Port 3000)
+#   3. Isolated PostgreSQL 16 Engine (Multi-Tenant Databases)
+#   4. Redis 7 (Cache & Session Store)
+#   5. Certbot (Automated Let's Encrypt SSL)
+# =================================================================
+
+services:
+  # 1. Reverse Proxy & Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: twins_saas_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - app
+    networks:
+      - twins_saas_net
+
+  # 2. Main Full-Stack Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: twins_saas_app
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - APP_DOMAIN=${APP_DOMAIN:-localhost}
+      - DB_SUPER_USER=${POSTGRES_USER:-twins_admin}
+      - DB_SUPER_PASSWORD=${POSTGRES_PASSWORD:-ContaboSecureElevatorPass2026!}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-twins_jwt_super_secret_contabo_vps_key_2026_elevators}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    expose:
+      - "3000"
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - twins_saas_net
+
+  # 3. Multi-Tenant PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: twins_saas_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-twins_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ContaboSecureElevatorPass2026!}
+      POSTGRES_DB: ${POSTGRES_DB:-twins_master_registry}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-twins_admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - twins_saas_net
+
+  # 4. Redis Cache & Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: twins_saas_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - twins_saas_net
+
+  # 5. Let's Encrypt SSL Auto-Renew Certbot
+  certbot:
+    image: certbot/certbot
+    container_name: twins_saas_certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+networks:
+  twins_saas_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
